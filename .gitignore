@@ -1,0 +1,12 @@
+# Python 가상 환경 폴더
+venv/
+__pycache__/
+
+# 데이터베이스 파일
+instance/
+*.sqlite3
+results.db
+
+# 운영체제/에디터 파일
+.DS_Store
+.vscode/

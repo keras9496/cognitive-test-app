@@ -1,0 +1,87 @@
+/* 기본 스타일 초기화 */
+html, body {
+    height: 100%; /* body가 화면 전체 높이를 차지하도록 설정 */
+    margin: 0;
+    padding: 0;
+    font-family: sans-serif; /* 가독성을 위한 기본 폰트 설정 */
+}
+
+/* body를 flex 컨테이너로 만들어 내부 요소를 중앙 정렬 */
+body {
+    display: flex;
+    justify-content: center; /* 수평 중앙 정렬 */
+    align-items: center;    /* 수직 중앙 정렬 */
+    background-color: #f0f2f5; /* 보기 좋게 배경색 추가 */
+}
+
+/* 폼 컨테이너 스타일 */
+.form-container {
+    background: white;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px; /* 컨테이너의 최대 너비 지정 */
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+}
+
+.test-container {
+    text-align: center;
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#message-label {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #4267B2;
+    margin-bottom: 20px;
+}
+
+#test-canvas {
+    background-color: #e9ebee; /* 기존 canvas 배경색 */
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box; /* 패딩이 너비에 포함되도록 설정 */
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.start-btn {
+    width: 100%;
+    padding: 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.start-btn:hover {
+    background-color: #0056b3;
+}
