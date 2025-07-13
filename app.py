@@ -6,10 +6,16 @@ from flask_sqlalchemy import SQLAlchemy
 
 # --- 초기 설정 ---
 app = Flask(__name__)
-app.secret_key = 'your_very_secret_key' # 실제 운영 시에는 아무도 모르는 값으로 변경하세요.
+# Flask 세션을 사용하기 위해 비밀 키가 필요합니다.
+# 실제 서비스에서는 아무도 모르는 복잡한 문자열로 변경하세요.
+app.secret_key = 'dev_secret_key_for_testing' 
 
 # --- 데이터베이스 설정 ---
 basedir = os.path.abspath(os.path.dirname(__file__))
+# instance 폴더가 없으면 생성
+if not os.path.exists(os.path.join(basedir, 'instance')):
+    os.makedirs(os.path.join(basedir, 'instance'))
+    
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'instance', 'results.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -74,26 +80,29 @@ def create_problem(level_index):
 
 def save_results_to_db():
     """세션에 저장된 점수를 데이터베이스에 저장합니다."""
-    nickname = session.get('nickname')
-    age = session.get('age')
-    date_str = session.get('test_date')
-    
-    for level_name, data in session.get('score', {}).items():
-        if not data.get('similarities'): continue
-        avg_sim = sum(data['similarities']) / len(data['similarities'])
+    with app.app_context():
+        nickname = session.get('nickname')
+        age = session.get('age')
+        test_date = session.get('test_date')
         
-        result_entry = Result(
-            nickname=nickname,
-            age=age,
-            test_date=date_str,
-            test_name='시각 순서 기억 검사',
-            level=level_name,
-            correct=data['correct'],
-            wrong=data['wrong'],
-            avg_similarity=avg_sim
-        )
-        db.session.add(result_entry)
-    db.session.commit()
+        for level_name, data in session.get('score', {}).items():
+            if not data.get('similarities'):
+                continue
+                
+            avg_sim = sum(data['similarities']) / len(data['similarities'])
+            
+            result_entry = Result(
+                nickname=nickname,
+                age=age,
+                test_date=test_date,
+                test_name='시각 순서 기억 검사',
+                level=level_name,
+                correct=data['correct'],
+                wrong=data['wrong'],
+                avg_similarity=round(avg_sim, 4)
+            )
+            db.session.add(result_entry)
+        db.session.commit()
 
 # --- 라우트(URL 경로) 정의 ---
 
@@ -112,32 +121,43 @@ def start_test():
     session['level_index'] = 0
     session['problem_in_level'] = 1
     session['score'] = {lvl['name']: {'correct': 0, 'wrong': 0, 'similarities': []} for lvl in LEVELS}
-
-    problem = create_problem(session['level_index'])
-    session['current_problem'] = problem
     
     return redirect(url_for('test_page'))
     
 @app.route("/test")
 def test_page():
     """테스트 페이지를 보여줍니다."""
-    if 'current_problem' not in session:
+    # 사용자가 직접 /test 로 접근하는 것을 방지
+    if 'nickname' not in session:
         return redirect(url_for('index'))
     return render_template('test.html')
 
 @app.route('/api/get-problem')
 def get_problem():
     """현재 진행해야 할 문제 정보를 JSON으로 제공합니다."""
-    if 'current_problem' in session:
-        problem = session['current_problem']
-        # 정답은 세션에만 남기고 프론트엔드로는 보내지 않습니다.
-        frontend_data = {
-            "level_name": problem.get('level_name'),
-            "flash_count": problem.get('flash_count'),
-            "boxes": problem.get('boxes')
-        }
-        return jsonify(frontend_data)
-    return jsonify({"error": "No problem found"}), 404
+    if 'nickname' not in session:
+        return jsonify({"error": "Session not started. Please go to the main page."}), 403
+
+    level_index = session.get('level_index', 0)
+    
+    # 새로운 문제 생성
+    problem = create_problem(level_index)
+    if not problem:
+        return jsonify({"status": "completed", "message": "모든 검사가 완료되었습니다. 감사합니다!"})
+        
+    session['current_problem'] = problem
+    session.modified = True
+    
+    # 프론트엔드에는 정답을 제외한 정보만 전달
+    frontend_data = {
+        "level_name": problem.get('level_name'),
+        "flash_count": problem.get('flash_count'),
+        "boxes": problem.get('boxes'),
+        "flash_sequence": problem.get('flash_sequence'), # 이제 정답을 프론트로 보냅니다.
+        "problem_in_level": session.get('problem_in_level'),
+        "total_problems": PROBLEMS_PER_LEVEL
+    }
+    return jsonify(frontend_data)
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
@@ -147,7 +167,7 @@ def submit_answer():
     
     current_problem = session.get('current_problem')
     if not current_problem:
-        return jsonify({"error": "No active problem"}), 400
+        return jsonify({"error": "No active problem in session"}), 400
 
     # 1. 채점
     correct_answer = current_problem['flash_sequence']
@@ -156,15 +176,14 @@ def submit_answer():
     matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
     similarity = matches / len(correct_answer) if len(correct_answer) > 0 else 0
 
-    # 2. 점수 기록
+    # 2. 점수 기록 (세션에 저장)
     level_name = LEVELS[session['level_index']]['name']
     if is_correct:
         session['score'][level_name]['correct'] += 1
     else:
         session['score'][level_name]['wrong'] += 1
     session['score'][level_name]['similarities'].append(similarity)
-    session.modified = True
-
+    
     # 3. 다음 문제로 진행 또는 종료
     session['problem_in_level'] += 1
     
@@ -172,22 +191,19 @@ def submit_answer():
         session['level_index'] += 1
         session['problem_in_level'] = 1
     
+    session.modified = True
+
     if session['level_index'] >= len(LEVELS):
+        # 모든 레벨 완료 -> 결과 저장 후 종료
         save_results_to_db()
         session.clear()
         return jsonify({"status": "completed", "message": "모든 검사가 완료되었습니다. 감사합니다!"})
     else:
-        next_problem = create_problem(session['level_index'])
-        session['current_problem'] = next_problem
-        # 정답은 세션에만 남기고 프론트엔드로는 보내지 않습니다.
-        frontend_data = {
-            "level_name": next_problem.get('level_name'),
-            "flash_count": next_problem.get('flash_count'),
-            "boxes": next_problem.get('boxes')
-        }
-        return jsonify({"status": "next_problem", "data": frontend_data})
+        # 다음 문제를 준비했다는 신호만 보냄
+        return jsonify({"status": "next_problem", "message": "정답입니다! 다음 문제로 넘어갑니다."})
 
 # --- 데이터베이스 초기화 명령어 ---
+# 터미널에서 `flask init-db` 실행
 @app.cli.command('init-db')
 def init_db_command():
     """데이터베이스 테이블을 생성합니다."""
@@ -195,6 +211,19 @@ def init_db_command():
         db.create_all()
     print('Initialized the database.')
 
-# --- 애플리케이션 실행 ---
+
+@app.route("/results")
+def show_results():
+    # 간단한 비밀번호 확인 (실제로는 더 안전한 방식 사용)
+    password = request.args.get('pw')
+    if password != 'admin1234': # 비밀번호를 원하는 값으로 변경
+        return "Access Denied.", 403
+
+    # 데이터베이스에서 모든 결과를 시간순으로 정렬하여 가져옴
+    all_results = Result.query.order_by(Result.id.desc()).all()
+    return render_template('results.html', results=all_results)
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)

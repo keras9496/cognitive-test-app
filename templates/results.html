@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>검사 결과</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <h1>전체 검사 결과</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>닉네임</th>
+                <th>나이</th>
+                <th>날짜</th>
+                <th>레벨</th>
+                <th>정답</th>
+                <th>오답</th>
+                <th>평균 유사도</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+            <tr>
+                <td>{{ result.id }}</td>
+                <td>{{ result.nickname }}</td>
+                <td>{{ result.age }}</td>
+                <td>{{ result.test_date }}</td>
+                <td>{{ result.level }}</td>
+                <td>{{ result.correct }}</td>
+                <td>{{ result.wrong }}</td>
+                <td>{{ "%.2f"|format(result.avg_similarity * 100) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
