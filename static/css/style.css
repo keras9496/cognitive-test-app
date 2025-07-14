@@ -110,7 +110,7 @@ h1 {
     justify-content: center;
 }
 
-#test-canvas {
+#test-canvas, #practice-canvas {
     /* 기존 test_modified.py의 배경색과 유사하게 설정 */
     background-color: #e9ebee; 
     border: 1px solid #d1d1d1; /* 구분선을 위한 테두리 추가 */

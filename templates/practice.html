@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>연습 - 시각 순서 기억 검사</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="test-container">
+        <h2 id="message-label">테스트 설명</h2>
+        <p id="instruction" style="margin-bottom: 20px;">
+            화면에 나타나는 박스들 중 일부가 순서대로 깜빡입니다.<br>
+            깜빡이는 순서를 잘 기억한 후, 순서에 맞게 박스를 클릭하세요.<br>
+            정답을 맞히면 본 테스트가 시작됩니다.
+        </p>
+        <canvas id="practice-canvas" width="500" height="500"></canvas>
+        
+        <button id="start-main-test-btn" class="start-btn" style="display: none; margin-top: 20px; max-width: 200px;">
+            본 테스트 시작하기
+        </button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/practice.js') }}"></script>
+</body>
+</html>
