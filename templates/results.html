@@ -2,23 +2,28 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>검사 결과</title>
+    <title>전체 검사 결과</title>
     <style>
         body { font-family: sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         tr:nth-child(even) { background-color: #f9f9f9; }
+        h1, h2 { border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px;}
     </style>
 </head>
 <body>
     <h1>전체 검사 결과</h1>
+
+    <h2>시각 순서 기억 검사 결과</h2>
     <table>
         <thead>
             <tr>
                 <th>ID</th>
                 <th>닉네임</th>
+                <th>이름</th>
                 <th>나이</th>
+                <th>성별</th>
                 <th>날짜</th>
                 <th>레벨</th>
                 <th>정답</th>
@@ -27,16 +32,58 @@
             </tr>
         </thead>
         <tbody>
-            {% for result in results %}
+            {% for result in sequence_results %}
             <tr>
                 <td>{{ result.id }}</td>
                 <td>{{ result.nickname }}</td>
+                <td>{{ result.name }}</td>
                 <td>{{ result.age }}</td>
+                <td>{{ result.gender }}</td>
                 <td>{{ result.test_date }}</td>
                 <td>{{ result.level }}</td>
                 <td>{{ result.correct }}</td>
                 <td>{{ result.wrong }}</td>
                 <td>{{ "%.2f"|format(result.avg_similarity * 100) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>도형 패턴 인지 테스트 결과</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>닉네임</th>
+                <th>이름</th>
+                <th>나이</th>
+                <th>성별</th>
+                <th>날짜</th>
+                <th>레벨</th>
+                <th>점수</th>
+                <th>시도</th>
+                <th>평균 소요 시간(초)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in pattern_results %}
+            <tr>
+                <td>{{ result.id }}</td>
+                <td>{{ result.nickname }}</td>
+                <td>{{ result.name }}</td>
+                <td>{{ result.age }}</td>
+                <td>{{ result.gender }}</td>
+                <td>{{ result.test_date }}</td>
+                <td>{{ result.level }}</td>
+                <td>{{ result.score }}</td>
+                <td>{{ result.attempts }}</td>
+                <td>
+                    {% if result.times_list and result.times_list|length > 0 %}
+                        {{ "%.2f"|format(result.times_list|sum / result.times_list|length) }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

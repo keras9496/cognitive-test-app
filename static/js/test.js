@@ -84,24 +84,16 @@ async function submitAnswer() {
             body: JSON.stringify({ answer: userSequence })
         });
         
-        const result = await response.json();
+        // 다음 문제로 넘어가는 로직은 initializeTest가 담당하므로, 여기서는 호출만 함
+        await initializeTest();
 
-        if (result.status === 'completed') {
-            messageLabel.textContent = result.message;
-            canvas.style.display = 'none';
-        } else if (result.status === 'next_problem') {
-            messageLabel.textContent = "다음 문제로 넘어갑니다.";
-            setTimeout(initializeTest, 1500);
-        } else {
-            messageLabel.textContent = `오류가 발생했습니다: ${result.error || '알 수 없는 오류'}`;
-        }
     } catch(error) {
         messageLabel.textContent = '서버 통신에 실패했습니다.';
         console.error('Submit Answer Error:', error);
     }
 }
 
-/** 캔버스 클릭 이벤트 처리 함수 (선택 취소 기능 제거) */
+/** 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
     if (gameState !== 'answering') return;
 
@@ -113,7 +105,6 @@ function handleCanvasClick(event) {
         if (x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2) {
             const boxId = box.id;
             
-            // 한 번 선택하면 취소할 수 없도록 수정
             if (!userSequence.includes(boxId)) {
                 userSequence.push(boxId);
             }
@@ -127,7 +118,7 @@ function handleCanvasClick(event) {
     });
 }
 
-/** 페이지가 로드되거나 다음 문제로 넘어갈 때, 서버에서 문제를 가져와 테스트 시작 (코드 간소화) */
+/** 페이지가 로드되거나 다음 문제로 넘어갈 때, 서버에서 문제를 가져와 테스트 시작 */
 async function initializeTest() {
     userSequence = [];
     gameState = 'loading';
@@ -139,13 +130,17 @@ async function initializeTest() {
         
         problemData = await response.json();
 
+        // status가 'completed'이면, 첫 번째 테스트가 끝난 것이므로 다음 테스트로 이동
         if(problemData.status === 'completed') {
             messageLabel.textContent = problemData.message;
-            canvas.style.display = 'none';
+            // 서버에서 받은 next_url로 2초 후 이동
+            setTimeout(() => {
+                window.location.href = problemData.next_url;
+            }, 2000);
             return;
         }
         
-        // 문제 데이터 로드 성공 및 다음 문제 시작
+        // 다음 문제 시작
         messageLabel.textContent = `${problemData.level_name} (${problemData.problem_in_level}/${problemData.total_problems}) - 잠시 후 시작됩니다.`;
         drawBoxes();
         setTimeout(showFlashingSequence, 1500);

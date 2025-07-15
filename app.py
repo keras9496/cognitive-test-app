@@ -1,18 +1,16 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import random
 import os
+import json
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
 # --- 초기 설정 ---
 app = Flask(__name__)
-# Flask 세션을 사용하기 위해 비밀 키가 필요합니다.
-# 실제 서비스에서는 아무도 모르는 복잡한 문자열로 변경하세요.
-app.secret_key = 'dev_secret_key_for_testing' 
+app.secret_key = 'dev_secret_key_for_testing_2' # 비밀 키 변경 권장
 
 # --- 데이터베이스 설정 ---
 basedir = os.path.abspath(os.path.dirname(__file__))
-# instance 폴더가 없으면 생성
 if not os.path.exists(os.path.join(basedir, 'instance')):
     os.makedirs(os.path.join(basedir, 'instance'))
     
@@ -21,7 +19,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- 데이터베이스 모델 정의 (name, gender 추가) ---
+# --- 데이터베이스 모델 정의 ---
+# 기존 시각 순서 기억 검사 결과 모델
 class Result(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nickname = db.Column(db.String(80), nullable=False)
@@ -37,6 +36,22 @@ class Result(db.Model):
 
     def __repr__(self):
         return f'<Result {self.nickname} - {self.test_name} - {self.level}>'
+
+# 신규 도형 패턴 인지 테스트 결과 모델
+class PatternResult(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nickname = db.Column(db.String(80), nullable=False)
+    name = db.Column(db.String(80), nullable=False)
+    age = db.Column(db.Integer, nullable=False)
+    gender = db.Column(db.String(10), nullable=False)
+    test_date = db.Column(db.String(20), nullable=False)
+    level = db.Column(db.Integer, nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    attempts = db.Column(db.Integer, nullable=False)
+    times_json = db.Column(db.String, nullable=False) # 각 문제별 소요 시간을 JSON 문자열로 저장
+
+    def __repr__(self):
+        return f'<PatternResult {self.nickname} - Level {self.level}>'
 
 # --- 상수 정의 ---
 LEVELS = [
@@ -84,9 +99,13 @@ def create_problem(level_index, is_practice=False):
         "flash_sequence": flash_sequence
     }
 
-def save_results_to_db():
-    """세션에 저장된 점수를 데이터베이스에 저장합니다."""
+def save_sequence_results_to_db():
+    """(첫 번째 테스트) 세션에 저장된 점수를 데이터베이스에 저장합니다."""
     with app.app_context():
+        # 세션에 사용자 정보가 없으면 저장하지 않음
+        if 'nickname' not in session:
+            return
+
         nickname = session.get('nickname')
         name = session.get('name')
         age = session.get('age')
@@ -134,7 +153,6 @@ def start_test():
     session['problem_in_level'] = 1
     session['score'] = {lvl['name']: {'correct': 0, 'wrong': 0, 'similarities': []} for lvl in LEVELS}
     
-    # 본 테스트 시작 전 연습 페이지로 리디렉션
     return redirect(url_for('practice_page'))
 
 @app.route("/practice")
@@ -146,11 +164,17 @@ def practice_page():
 
 @app.route("/test")
 def test_page():
-    """테스트 페이지를 보여줍니다."""
-    # 사용자가 직접 /test 로 접근하는 것을 방지
+    """첫 번째 테스트(시각 순서 기억) 페이지를 보여줍니다."""
     if 'nickname' not in session:
         return redirect(url_for('index'))
     return render_template('test.html')
+    
+@app.route("/pattern-test")
+def pattern_test_page():
+    """두 번째 테스트(도형 패턴 인지) 페이지를 보여줍니다."""
+    if 'nickname' not in session:
+        return redirect(url_for('index'))
+    return render_template('pattern_test.html')
 
 @app.route('/api/get-practice-problem')
 def get_practice_problem():
@@ -179,21 +203,25 @@ def submit_practice_answer():
 
 @app.route('/api/get-problem')
 def get_problem():
-    """현재 진행해야 할 문제 정보를 JSON으로 제공합니다."""
+    """(첫 번째 테스트) 현재 진행해야 할 문제 정보를 JSON으로 제공합니다."""
     if 'nickname' not in session:
         return jsonify({"error": "Session not started. Please go to the main page."}), 403
 
     level_index = session.get('level_index', 0)
     
-    # 새로운 문제 생성
+    if level_index >= len(LEVELS):
+        save_sequence_results_to_db()
+        # 첫 번째 테스트가 끝나면 두 번째 테스트로 이동하라는 신호를 보냄
+        return jsonify({"status": "completed", "message": "1차 검사가 완료되었습니다. 다음 검사를 진행합니다.", "next_url": url_for('pattern_test_page')})
+        
     problem = create_problem(level_index)
     if not problem:
-        return jsonify({"status": "completed", "message": "모든 검사가 완료되었습니다. 감사합니다!"})
+        # 이 경우는 거의 발생하지 않음
+        return jsonify({"status": "error", "message": "문제 생성에 실패했습니다."})
         
     session['current_problem'] = problem
     session.modified = True
     
-    # 프론트엔드에는 정답을 포함한 모든 정보 전달
     frontend_data = {
         "level_name": problem.get('level_name'),
         "flash_count": problem.get('flash_count'),
@@ -206,7 +234,7 @@ def get_problem():
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
-    """사용자의 답안을 받아 처리하고 다음 문제 또는 종료 신호를 보냅니다."""
+    """(첫 번째 테스트) 사용자의 답안을 받아 처리하고 다음 상태를 결정합니다."""
     data = request.get_json()
     user_answer = data.get('answer')
     
@@ -214,14 +242,12 @@ def submit_answer():
     if not current_problem:
         return jsonify({"error": "No active problem in session"}), 400
 
-    # 1. 채점
     correct_answer = current_problem['flash_sequence']
     is_correct = (user_answer == correct_answer)
     
     matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
     similarity = matches / len(correct_answer) if len(correct_answer) > 0 else 0
 
-    # 2. 점수 기록 (세션에 저장)
     level_name = LEVELS[session['level_index']]['name']
     if is_correct:
         session['score'][level_name]['correct'] += 1
@@ -229,7 +255,6 @@ def submit_answer():
         session['score'][level_name]['wrong'] += 1
     session['score'][level_name]['similarities'].append(similarity)
     
-    # 3. 다음 문제로 진행 또는 종료
     session['problem_in_level'] += 1
     
     if session['problem_in_level'] > PROBLEMS_PER_LEVEL:
@@ -237,18 +262,36 @@ def submit_answer():
         session['problem_in_level'] = 1
     
     session.modified = True
+    
+    return jsonify({"status": "next_problem"})
 
-    if session['level_index'] >= len(LEVELS):
-        # 모든 레벨 완료 -> 결과 저장 후 종료
-        save_results_to_db()
-        session.clear()
-        return jsonify({"status": "completed", "message": "모든 검사가 완료되었습니다. 감사합니다!"})
-    else:
-        # 다음 문제를 준비했다는 신호만 보냄
-        return jsonify({"status": "next_problem", "message": "다음 문제로 넘어갑니다."})
 
-# --- 데이터베이스 초기화 명령어 ---
-# 터미널에서 `flask init-db` 실행
+@app.route('/api/submit-pattern-result', methods=['POST'])
+def submit_pattern_result():
+    """(두 번째 테스트) 도형 패턴 인지 테스트 결과를 받아 DB에 저장합니다."""
+    if 'nickname' not in session:
+        return jsonify({"error": "Session not found"}), 403
+
+    data = request.get_json()
+    
+    result_entry = PatternResult(
+        nickname=session.get('nickname'),
+        name=session.get('name'),
+        age=session.get('age'),
+        gender=session.get('gender'),
+        test_date=session.get('test_date'),
+        level=data.get('level'),
+        score=data.get('score'),
+        attempts=data.get('attempts'),
+        times_json=json.dumps(data.get('times', [])) # 리스트를 JSON 문자열로 변환
+    )
+    db.session.add(result_entry)
+    db.session.commit()
+    
+    return jsonify({"status": "success", "message": "결과가 저장되었습니다."})
+
+# --- 데이터베이스 및 결과 페이지 ---
+
 @app.cli.command('init-db')
 def init_db_command():
     """데이터베이스 테이블을 생성합니다."""
@@ -256,19 +299,27 @@ def init_db_command():
         db.create_all()
     print('Initialized the database.')
 
-
 @app.route("/results")
 def show_results():
-    # 간단한 비밀번호 확인 (실제로는 더 안전한 방식 사용)
     password = request.args.get('pw')
-    if password != 'admin1234': # 비밀번호를 원하는 값으로 변경
+    if password != 'admin1234':
         return "Access Denied.", 403
 
-    # 데이터베이스에서 모든 결과를 시간순으로 정렬하여 가져옴
-    all_results = Result.query.order_by(Result.id.desc()).all()
-    return render_template('results.html', results=all_results)
-
+    # 각 테스트 결과를 ID 내림차순으로 가져옴
+    sequence_results = Result.query.order_by(Result.id.desc()).all()
+    pattern_results_raw = PatternResult.query.order_by(PatternResult.id.desc()).all()
+    
+    # JSON으로 저장된 시간 데이터를 Python 리스트로 변환
+    pattern_results = []
+    for r in pattern_results_raw:
+        r.times_list = json.loads(r.times_json)
+        pattern_results.append(r)
+        
+    return render_template('results.html', sequence_results=sequence_results, pattern_results=pattern_results)
 
 
 if __name__ == "__main__":
+    # 데이터베이스 파일이 없으면 생성
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
