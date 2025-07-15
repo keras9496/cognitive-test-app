@@ -61,7 +61,7 @@
                 <th>날짜</th>
                 <th>레벨</th>
                 <th>점수</th>
-                <th>시도</th>
+                <th>총 문제</th>
                 <th>평균 소요 시간(초)</th>
             </tr>
         </thead>
@@ -76,7 +76,7 @@
                 <td>{{ result.test_date }}</td>
                 <td>{{ result.level }}</td>
                 <td>{{ result.score }}</td>
-                <td>{{ result.attempts }}</td>
+                <td>{{ result.total_problems }}</td>
                 <td>
                     {% if result.times_list and result.times_list|length > 0 %}
                         {{ "%.2f"|format(result.times_list|sum / result.times_list|length) }}
