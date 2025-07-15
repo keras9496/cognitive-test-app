@@ -1,30 +1,53 @@
-<main id="game-container" class="bg-white p-6 md:p-8 rounded-2xl shadow-lg text-center">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center mb-6">
-        <div>
-            <h3 class="text-xl font-semibold mb-2">원본 도형</h3>
-            <canvas id="originalCanvas" width="300" height="300" class="border border-gray-300 rounded-lg mx-auto"></canvas>
-        </div>
-        <div>
-            <h3 class="text-xl font-semibold mb-2">테스트 도형</h3>
-            <canvas id="testCanvas" width="300" height="300" class="border border-gray-300 rounded-lg mx-auto"></canvas>
-        </div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>도형 패턴 인지 테스트</title>
+</head>
+<body class="bg-slate-50 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">도형 패턴 인지 테스트</h1>
+            <p id="sub-header" class="text-lg text-gray-600 mt-2">잠시 후 테스트가 시작됩니다.</p>
+        </header>
+
+        <div id="level-selection" class="hidden"></div>
+
+        <main id="game-container" class="bg-white p-6 md:p-8 rounded-2xl shadow-lg text-center">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center mb-6">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">원본 도형</h3>
+                    <canvas id="originalCanvas" width="300" height="300" class="border border-gray-300 rounded-lg mx-auto"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">테스트 도형</h3>
+                    <canvas id="testCanvas" width="300" height="300" class="border border-gray-300 rounded-lg mx-auto"></canvas>
+                </div>
+            </div>
+        
+            <div id="feedback" class="text-xl font-bold my-4 min-h-[30px]">&nbsp;</div>
+        
+            <div id="answer-buttons" class="flex justify-center gap-4 mb-4">
+                <button id="sameBtn" class="px-8 py-3 text-lg font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors">같음</button>
+                <button id="differentBtn" class="px-8 py-3 text-lg font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors">다름</button>
+            </div>
+        
+            <button id="nextBtn" class="hidden px-8 py-3 text-lg font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors">다음 문제</button>
+        
+            <div class="mt-8 text-gray-600 flex justify-around w-full max-w-md mx-auto">
+                <p><strong>점수:</strong> <span id="score">0</span></p>
+                <p><strong>문제:</strong> <span id="attempts">0 / 0</span></p>
+            </div>
+        
+            <div class="mt-8 text-center">
+                <button id="finish-test-early-btn" class="text-sm text-gray-500 hover:text-red-600 underline">테스트 그만하기</button>
+            </div>
+        </main>
     </div>
 
-    <div id="feedback" class="text-xl font-bold my-4 min-h-[30px]">&nbsp;</div>
-
-    <div id="answer-buttons" class="flex justify-center gap-4 mb-4">
-        <button id="sameBtn" class="px-8 py-3 text-lg font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors">같음</button>
-        <button id="differentBtn" class="px-8 py-3 text-lg font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors">다름</button>
-    </div>
-
-    <button id="nextBtn" class="hidden px-8 py-3 text-lg font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors">다음 문제</button>
-
-    <div class="mt-8 text-gray-600 flex justify-around w-full max-w-md mx-auto">
-        <p><strong>점수:</strong> <span id="score">0</span></p>
-        <p><strong>문제:</strong> <span id="attempts">0 / 0</span></p>
-    </div>
-
-    <div class="mt-8 text-center">
-        <button id="finish-test-early-btn" class="text-sm text-gray-500 hover:text-red-600 underline">테스트 그만하기</button>
-    </div>
-</main>
+    <script src="{{ url_for('static', filename='js/pattern_test.js') }}"></script>
+</body>
+</html>
