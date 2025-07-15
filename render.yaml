@@ -17,4 +17,7 @@ services:
       - key: SECRET_KEY # 예시, Render 대시보드에서 실제 값 설정
         generateValue: true
       - key: ADMIN_PASSWORD # 예시, Render 대시보드에서 실제 값 설정
-        value: "your_secure_password"
+        value: "w123456789"
+    disks:
+      - name: data
+        mountPath: /opt/render/project/src/instance

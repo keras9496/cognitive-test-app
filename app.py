@@ -4,33 +4,40 @@ import os
 import json
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate # 추가
+from flask_migrate import Migrate
 
 # --- 초기 설정 ---
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret_key_for_testing_2') # 환경 변수 사용 권장
+# Render와 같은 배포 환경에서는 환경 변수를 사용하는 것이 보안상 안전합니다.
+# 로컬 테스트를 위해 기본값도 설정합니다.
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret_key_for_local_testing')
 
 # --- 데이터베이스 설정 ---
 basedir = os.path.abspath(os.path.dirname(__file__))
+# 'instance' 폴더가 없으면 생성합니다.
 if not os.path.exists(os.path.join(basedir, 'instance')):
     os.makedirs(os.path.join(basedir, 'instance'))
-    
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'instance', 'results.db')
+
+# 데이터베이스 URI 설정
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or \
+    'sqlite:///' + os.path.join(basedir, 'instance', 'cognitive_tests.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db) # 추가: Migrate 객체 초기화
+migrate = Migrate(app, db) # Flask-Migrate 객체 초기화
 
 # --- 데이터베이스 모델 정의 ---
-# 기존 시각 순서 기억 검사 결과 모델
+
+# 1. 시각 순서 기억 검사 결과 모델
 class Result(db.Model):
+    __tablename__ = 'sequence_memory_results' # 테이블 이름 명시
     id = db.Column(db.Integer, primary_key=True)
     nickname = db.Column(db.String(80), nullable=False)
     name = db.Column(db.String(80), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     gender = db.Column(db.String(10), nullable=False)
     test_date = db.Column(db.String(20), nullable=False)
-    test_name = db.Column(db.String(80), nullable=False, server_default='시각 순서 기억 검사') # 기본값 추가
+    test_name = db.Column(db.String(80), nullable=False, server_default='시각 순서 기억 검사')
     level = db.Column(db.String(50), nullable=False)
     correct = db.Column(db.Integer, nullable=False)
     wrong = db.Column(db.Integer, nullable=False)
@@ -39,17 +46,18 @@ class Result(db.Model):
     def __repr__(self):
         return f'<Result {self.nickname} - {self.test_name} - {self.level}>'
 
-# 신규 도형 패턴 인지 테스트 결과 모델
+# 2. 도형 패턴 인지 테스트 결과 모델 (새로운 요구사항 반영)
 class PatternResult(db.Model):
+    __tablename__ = 'pattern_recognition_results' # 테이블 이름 명시
     id = db.Column(db.Integer, primary_key=True)
     nickname = db.Column(db.String(80), nullable=False)
     name = db.Column(db.String(80), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     gender = db.Column(db.String(10), nullable=False)
     test_date = db.Column(db.String(20), nullable=False)
-    level = db.Column(db.Integer, nullable=False)
-    score = db.Column(db.Integer, nullable=False)
-    attempts = db.Column(db.Integer, nullable=False)
+    level = db.Column(db.Integer, nullable=False) # 각 레벨별로 결과 저장
+    score = db.Column(db.Integer, nullable=False) # 해당 레벨의 점수
+    total_problems = db.Column(db.Integer, nullable=False) # 해당 레벨의 총 문제 수
     times_json = db.Column(db.String, nullable=False) # 각 문제별 소요 시간을 JSON 문자열로 저장
 
     def __repr__(self):
@@ -57,26 +65,27 @@ class PatternResult(db.Model):
 
 
 # --- 상수 정의 ---
-LEVELS = [
+# 첫 번째 테스트(시각 순서 기억) 설정
+SEQUENCE_LEVELS = [
     {'name': 'Level 1', 'box_count': 5, 'flash_count': 3},
     {'name': 'Level 2', 'box_count': 7, 'flash_count': 4},
     {'name': 'Level 3', 'box_count': 7, 'flash_count': 5},
 ]
-PROBLEMS_PER_LEVEL = 3
+PROBLEMS_PER_SEQUENCE_LEVEL = 3
 CANVAS_WIDTH = 500
 CANVAS_HEIGHT = 500
 BOX_SIZE = 50
 
 # --- 핵심 로직 함수들 ---
 
-def create_problem(level_index, is_practice=False):
-    """지정된 레벨 또는 연습에 맞는 문제를 생성합니다."""
+def create_sequence_problem(level_index, is_practice=False):
+    """(첫 번째 테스트) 지정된 레벨 또는 연습에 맞는 문제를 생성합니다."""
     if is_practice:
         level_info = {'name': 'Practice', 'box_count': 3, 'flash_count': 2}
-    elif level_index >= len(LEVELS):
+    elif level_index >= len(SEQUENCE_LEVELS):
         return None
     else:
-        level_info = LEVELS[level_index]
+        level_info = SEQUENCE_LEVELS[level_index]
 
     box_count = level_info['box_count']
     flash_count = level_info['flash_count']
@@ -105,8 +114,8 @@ def create_problem(level_index, is_practice=False):
 def save_sequence_results_to_db():
     """(첫 번째 테스트) 세션에 저장된 점수를 데이터베이스에 저장합니다."""
     with app.app_context():
-        # 세션에 사용자 정보가 없으면 저장하지 않음
-        if 'nickname' not in session:
+        if 'nickname' not in session or 'score' not in session:
+            print("세션에 닉네임 또는 점수 정보가 없어 DB에 저장하지 않습니다.")
             return
 
         nickname = session.get('nickname')
@@ -127,7 +136,6 @@ def save_sequence_results_to_db():
                 age=age,
                 gender=gender,
                 test_date=test_date,
-                test_name='시각 순서 기억 검사',
                 level=level_name,
                 correct=data['correct'],
                 wrong=data['wrong'],
@@ -135,6 +143,7 @@ def save_sequence_results_to_db():
             )
             db.session.add(result_entry)
         db.session.commit()
+        print(f"{nickname}님의 시각 순서 기억 검사 결과가 DB에 저장되었습니다.")
 
 # --- 라우트(URL 경로) 정의 ---
 
@@ -152,9 +161,11 @@ def start_test():
     session['age'] = request.form['age']
     session['gender'] = request.form['gender']
     session['test_date'] = request.form['test_date']
+    
+    # 첫 번째 테스트를 위한 세션 초기화
     session['level_index'] = 0
     session['problem_in_level'] = 1
-    session['score'] = {lvl['name']: {'correct': 0, 'wrong': 0, 'similarities': []} for lvl in LEVELS}
+    session['score'] = {lvl['name']: {'correct': 0, 'wrong': 0, 'similarities': []} for lvl in SEQUENCE_LEVELS}
     
     return redirect(url_for('practice_page'))
 
@@ -179,13 +190,15 @@ def pattern_test_page():
         return redirect(url_for('index'))
     return render_template('pattern_test.html')
 
+# --- API 엔드포인트 ---
+
 @app.route('/api/get-practice-problem')
 def get_practice_problem():
     """연습 문제 정보를 JSON으로 제공합니다."""
     if 'nickname' not in session:
         return jsonify({"error": "Session not started"}), 403
     
-    problem = create_problem(0, is_practice=True)
+    problem = create_sequence_problem(0, is_practice=True)
     session['practice_problem'] = problem
     session.modified = True
     
@@ -212,14 +225,20 @@ def get_problem():
 
     level_index = session.get('level_index', 0)
     
-    if level_index >= len(LEVELS):
+    # 모든 레벨을 완료했는지 확인
+    if level_index >= len(SEQUENCE_LEVELS):
         save_sequence_results_to_db()
-        # 첫 번째 테스트가 끝나면 두 번째 테스트로 이동하라는 신호를 보냄
-        return jsonify({"status": "completed", "message": "1차 검사가 완료되었습니다. 다음 검사를 진행합니다.", "next_url": url_for('pattern_test_page')})
+        # 세션에서 점수 정보는 삭제하여 중복 저장을 방지
+        session.pop('score', None)
+        session.modified = True
+        return jsonify({
+            "status": "completed", 
+            "message": "1차 검사가 완료되었습니다. 다음 검사를 진행합니다.", 
+            "next_url": url_for('pattern_test_page')
+        })
         
-    problem = create_problem(level_index)
+    problem = create_sequence_problem(level_index)
     if not problem:
-        # 이 경우는 거의 발생하지 않음
         return jsonify({"status": "error", "message": "문제 생성에 실패했습니다."})
         
     session['current_problem'] = problem
@@ -231,7 +250,7 @@ def get_problem():
         "boxes": problem.get('boxes'),
         "flash_sequence": problem.get('flash_sequence'), 
         "problem_in_level": session.get('problem_in_level'),
-        "total_problems": PROBLEMS_PER_LEVEL
+        "total_problems": PROBLEMS_PER_SEQUENCE_LEVEL
     }
     return jsonify(frontend_data)
 
@@ -251,7 +270,7 @@ def submit_answer():
     matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
     similarity = matches / len(correct_answer) if len(correct_answer) > 0 else 0
 
-    level_name = LEVELS[session['level_index']]['name']
+    level_name = SEQUENCE_LEVELS[session['level_index']]['name']
     if is_correct:
         session['score'][level_name]['correct'] += 1
     else:
@@ -260,7 +279,7 @@ def submit_answer():
     
     session['problem_in_level'] += 1
     
-    if session['problem_in_level'] > PROBLEMS_PER_LEVEL:
+    if session['problem_in_level'] > PROBLEMS_PER_SEQUENCE_LEVEL:
         session['level_index'] += 1
         session['problem_in_level'] = 1
     
@@ -277,6 +296,10 @@ def submit_pattern_result():
 
     data = request.get_json()
     
+    # 클라이언트로부터 받은 데이터 검증
+    if not all(k in data for k in ['level', 'score', 'total_problems', 'times']):
+        return jsonify({"error": "Missing data"}), 400
+
     result_entry = PatternResult(
         nickname=session.get('nickname'),
         name=session.get('name'),
@@ -285,27 +308,25 @@ def submit_pattern_result():
         test_date=session.get('test_date'),
         level=data.get('level'),
         score=data.get('score'),
-        attempts=data.get('attempts'),
+        total_problems=data.get('total_problems'),
         times_json=json.dumps(data.get('times', [])) # 리스트를 JSON 문자열로 변환
     )
     db.session.add(result_entry)
     db.session.commit()
+    print(f"{session.get('nickname')}님의 도형 패턴 인지 Level {data.get('level')} 결과가 DB에 저장되었습니다.")
     
     return jsonify({"status": "success", "message": "결과가 저장되었습니다."})
 
-# --- 데이터베이스 및 결과 페이지 ---
-
-@app.cli.command('init-db')
-def init_db_command():
-    """(더 이상 사용되지 않음) 데이터베이스 테이블을 생성합니다."""
-    print('`flask init-db` is deprecated. Use `flask db upgrade`.')
+# --- 결과 페이지 ---
 
 @app.route("/results")
 def show_results():
+    """두 테스트의 모든 결과를 관리자에게 보여주는 페이지입니다."""
     password = request.args.get('pw')
-    admin_pw = os.environ.get('ADMIN_PASSWORD', 'admin1234') # 환경 변수 사용 권장
+    # Render 대시보드에서 설정한 환경 변수 값을 가져옵니다.
+    admin_pw = os.environ.get('ADMIN_PASSWORD', 'local_admin_pw')
     if password != admin_pw:
-        return "Access Denied.", 403
+        return "Access Denied. 관리자 암호를 확인하세요.", 403
 
     # 각 테스트 결과를 ID 내림차순으로 가져옴
     sequence_results = Result.query.order_by(Result.id.desc()).all()
@@ -316,12 +337,15 @@ def show_results():
     for r in pattern_results_raw:
         try:
             r.times_list = json.loads(r.times_json)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             r.times_list = [] # JSON 파싱 오류 시 빈 리스트로 처리
         pattern_results.append(r)
         
     return render_template('results.html', sequence_results=sequence_results, pattern_results=pattern_results)
 
 
+# --- 애플리케이션 실행 ---
 if __name__ == "__main__":
-    app.run(debug=True)
+    # 로컬에서 실행할 때 디버그 모드를 활성화합니다.
+    # gunicorn으로 실행될 때는 이 부분이 실행되지 않습니다.
+    app.run(debug=True, port=5001)

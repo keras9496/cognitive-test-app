@@ -9,38 +9,42 @@ const differentBtn = document.getElementById('differentBtn');
 const nextBtn = document.getElementById('nextBtn');
 const feedbackEl = document.getElementById('feedback');
 const scoreEl = document.getElementById('score');
-const attemptsEl = document.getElementById('attempts');
+const attemptsEl = document.getElementById('attempts'); // 이 요소는 이제 '문제 번호'를 표시하는 데 사용됩니다.
 const answerButtons = document.getElementById('answer-buttons');
-
-const levelSelectionDiv = document.getElementById('level-selection');
-const gameContainerDiv = document.getElementById('game-container');
-const levelButtons = document.querySelectorAll('.levelBtn');
-const backToMenuBtn = document.getElementById('backToMenuBtn');
 const subHeader = document.getElementById('sub-header');
-const finishTestBtn = document.getElementById('finish-test-btn');
+const finishTestEarlyBtn = document.getElementById('finish-test-early-btn'); // 조기 종료 버튼
 
 const COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f97316', '#8b5cf6']; // Red, Blue, Green, Orange, Violet
 const BOX_SIZE = 22;
 const STROKE_COLOR = '#4b5563';
 
+// 각기 다른 박스 개수를 가진 도형 세트
 const ALL_SHAPES = [
+    // 5개 박스
     { coords: [[1,0], [0,1], [1,1], [2,1], [1,2]] }, { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]] }, { coords: [[0,0], [1,0], [0,1], [1,1], [0,2]] }, { coords: [[0,0], [1,0], [2,0], [0,1], [2,1]] }, { coords: [[0,0], [0,1], [1,1], [1,2], [2,2]] },
+    // 6개 박스
     { coords: [[0,0], [0,1], [0,2], [1,2], [2,2], [2,1]]}, { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1]]}, { coords: [[0,0], [1,0], [2,0], [3,0], [0,1], [1,1]]}, { coords: [[1,0], [0,1], [1,1], [2,1], [0,2], [1,2]]}, { coords: [[0,1], [1,1], [2,1], [0,0], [2,0], [1,2]]},
+    // 7개 박스
     { coords: [[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2,2]]}, { coords: [[1,0], [0,1], [1,1], [2,1], [1,2], [0,3], [2,3]]}, { coords: [[0,0], [1,0], [2,0], [3,0], [0,1], [0,2], [0,3]]}, { coords: [[1,0], [0,1], [1,1], [2,1], [3,1], [1,2], [1,3]]}, { coords: [[0,0], [1,0], [2,0], [1,1], [1,2], [1,3], [1,4]]}
 ];
 
+// 레벨별 설정
 const LEVEL_CONFIG = {
-    1: { boxCount: 5, colorCount: 3 },
-    2: { boxCount: 6, colorCount: 4 },
-    3: { boxCount: 7, colorCount: 5 }
+    1: { boxCount: 5, colorCount: 3, totalProblems: 3 },
+    2: { boxCount: 6, colorCount: 4, totalProblems: 3 },
+    3: { boxCount: 7, colorCount: 5, totalProblems: 3 }
 };
+const MAX_LEVEL = Object.keys(LEVEL_CONFIG).length;
 
-let currentLevel, currentShape, originalColorPattern, testColorPattern, correctAnswer;
-let score = 0;
-let attempts = 0;
+// 게임 상태 변수
+let currentLevel = 1;
+let problemInLevel = 1;
+let currentShape, originalColorPattern, testColorPattern, correctAnswer;
+let levelScore = 0;
 let answerTimes = [];
 let questionStartTime;
 let availableShapes = [];
+
 
 // --- 핵심 로직 함수 ---
 
@@ -55,16 +59,17 @@ function shuffleArray(array) {
     return newArray;
 }
 
-function isAllSameColor(pattern) {
-    if (pattern.length < 2) return true;
-    return pattern.every(color => color === pattern[0]);
-}
-
+// 모든 색이 동일한 패턴이 생성되지 않도록 방지
 function generateValidColorPattern(length, colorCount) {
     let pattern;
-    do {
-        pattern = Array.from({ length }, () => getRandomInt(0, colorCount - 1));
-    } while (isAllSameColor(pattern) && colorCount > 1); // 단일 색상만 가능한 경우는 무한 루프 방지
+    // 색상 종류가 1개 이상일 때만 유효성 검사
+    if (colorCount > 1) {
+        do {
+            pattern = Array.from({ length }, () => getRandomInt(0, colorCount - 1));
+        } while (pattern.every(color => color === pattern[0]));
+    } else {
+        pattern = Array.from({ length }, () => 0);
+    }
     return pattern;
 }
 
@@ -97,137 +102,166 @@ function drawShape(ctx, shape, colorPattern, rotation) {
 }
 
 function generateNewQuestion() {
-    try {
-        feedbackEl.textContent = '';
-        feedbackEl.className = '';
-        nextBtn.classList.add('hidden');
-        answerButtons.classList.remove('hidden');
-        sameBtn.disabled = false;
-        differentBtn.disabled = false;
+    feedbackEl.textContent = '';
+    feedbackEl.className = '';
+    nextBtn.classList.add('hidden');
+    answerButtons.classList.remove('hidden');
+    sameBtn.disabled = false;
+    differentBtn.disabled = false;
 
-        const config = LEVEL_CONFIG[currentLevel];
-        // availableShapes 배열이 비어있는지 다시 한번 확인
-        if (!availableShapes || availableShapes.length === 0) {
-            throw new Error(`레벨 ${currentLevel}에 사용할 수 있는 도형이 없습니다.`);
-        }
-        currentShape = availableShapes[getRandomInt(0, availableShapes.length - 1)];
-        
-        originalColorPattern = generateValidColorPattern(config.boxCount, config.colorCount);
+    const config = LEVEL_CONFIG[currentLevel];
+    
+    // 현재 문제 번호 업데이트
+    attemptsEl.textContent = `${problemInLevel} / ${config.totalProblems}`;
+    scoreEl.textContent = levelScore;
 
-        const isSameProblem = Math.random() < 0.5;
-
-        if (isSameProblem) {
-            testColorPattern = [...originalColorPattern];
-            correctAnswer = 'same';
-        } else {
-            do {
-                testColorPattern = shuffleArray(originalColorPattern);
-            } while (JSON.stringify(testColorPattern) === JSON.stringify(originalColorPattern));
-            correctAnswer = 'different';
-        }
-
-        const rotationAngle = getRandomInt(20, 310);
-        drawShape(originalCtx, currentShape, originalColorPattern, 0);
-        drawShape(testCtx, currentShape, testColorPattern, rotationAngle);
-
-        questionStartTime = new Date().getTime();
-    } catch (error) {
-        console.error("문제 생성 중 오류 발생:", error);
-        feedbackEl.textContent = '문제를 불러오는 중 오류가 발생했습니다. 새로고침 후 다시 시도해주세요.';
-        feedbackEl.className = 'text-red-500';
-        answerButtons.classList.add('hidden'); // 오류 시 버튼 숨김
+    // 레벨에 맞는 도형 필터링
+    availableShapes = ALL_SHAPES.filter(shape => shape.coords.length === config.boxCount);
+    if (!availableShapes || availableShapes.length === 0) {
+        console.error(`레벨 ${currentLevel}에 해당하는 도형이 없습니다.`);
+        feedbackEl.textContent = '오류: 문제를 불러올 수 없습니다. 관리자에게 문의하세요.';
+        return;
     }
+    currentShape = availableShapes[getRandomInt(0, availableShapes.length - 1)];
+    
+    originalColorPattern = generateValidColorPattern(config.boxCount, config.colorCount);
+
+    const isSameProblem = Math.random() < 0.5;
+    if (isSameProblem) {
+        testColorPattern = [...originalColorPattern];
+        correctAnswer = 'same';
+    } else {
+        do {
+            testColorPattern = shuffleArray(originalColorPattern);
+        } while (JSON.stringify(testColorPattern) === JSON.stringify(originalColorPattern) && config.colorCount > 1);
+        correctAnswer = 'different';
+    }
+
+    const rotationAngle = getRandomInt(20, 310);
+    drawShape(originalCtx, currentShape, originalColorPattern, 0);
+    drawShape(testCtx, currentShape, testColorPattern, rotationAngle);
+
+    questionStartTime = new Date().getTime();
 }
 
 function checkAnswer(userAnswer) {
     const endTime = new Date().getTime();
     const timeTaken = (endTime - questionStartTime) / 1000;
-    answerTimes.push(timeTaken);
+    answerTimes.push(parseFloat(timeTaken.toFixed(2)));
 
     sameBtn.disabled = true;
     differentBtn.disabled = true;
-    attempts++;
+    
     let isCorrect = userAnswer === correctAnswer;
     if (isCorrect) {
-        score++;
+        levelScore++;
         feedbackEl.textContent = '정답입니다!';
         feedbackEl.className = 'text-green-500';
     } else {
-        feedbackEl.textContent = '오답입니다!';
+        feedbackEl.textContent = '오답입니다.';
         feedbackEl.className = 'text-red-500';
     }
-    scoreEl.textContent = score;
-    attemptsEl.textContent = attempts;
+    scoreEl.textContent = levelScore;
+    
     answerButtons.classList.add('hidden');
     nextBtn.classList.remove('hidden');
 }
 
-function startGame(level) {
-    currentLevel = level;
-    const config = LEVEL_CONFIG[level];
-    
-    // 도형 필터링 로직
-    availableShapes = ALL_SHAPES.filter(shape => shape.coords.length === config.boxCount);
+async function submitLevelResultsAndProceed() {
+    const resultData = {
+        level: currentLevel,
+        score: levelScore,
+        total_problems: LEVEL_CONFIG[currentLevel].totalProblems,
+        times: answerTimes
+    };
 
-    // **[오류 방지]** 필터링 후 도형이 없는 경우를 확인하고 오류 메시지를 표시합니다.
-    if (!availableShapes || availableShapes.length === 0) {
-        alert(`오류: 레벨 ${level}에 해당하는 도형 데이터를 찾을 수 없습니다. 스크립트를 확인해주세요.`);
-        return; 
+    try {
+        const response = await fetch('/api/submit-pattern-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(resultData)
+        });
+        if (!response.ok) {
+            throw new Error('서버에 결과 저장 실패');
+        }
+        console.log(`레벨 ${currentLevel} 결과 저장 성공`);
+
+        // 다음 단계로 진행
+        currentLevel++;
+        if (currentLevel > MAX_LEVEL) {
+            finishAllTests();
+        } else {
+            startLevel(currentLevel);
+        }
+
+    } catch (error) {
+        console.error('결과 저장 중 오류:', error);
+        feedbackEl.textContent = '결과 저장에 실패했습니다. 인터넷 연결을 확인해주세요.';
+        // 실패 시에도 다음 레벨로 넘어갈 수 있도록 버튼을 보여줄 수 있음 (선택적)
+        // nextBtn.textContent = "다음 레벨로";
+        // nextBtn.classList.remove('hidden');
     }
+}
 
-    score = 0;
-    attempts = 0;
+function startLevel(level) {
+    currentLevel = level;
+    problemInLevel = 1;
+    levelScore = 0;
     answerTimes = [];
-    scoreEl.textContent = score;
-    attemptsEl.textContent = attempts;
 
-    levelSelectionDiv.classList.add('hidden');
-    gameContainerDiv.classList.remove('hidden');
-    subHeader.textContent = `두 도형의 색상 패턴이 같은지 다른지 맞춰보세요. (레벨 ${level})`;
-
+    subHeader.textContent = `레벨 ${level} - 두 도형의 색상 패턴이 같은지 다른지 맞춰보세요.`;
+    
     generateNewQuestion();
 }
 
-async function backToMenu() {
-    if (attempts > 0) {
-        const resultData = {
-            level: currentLevel,
-            score: score,
-            attempts: attempts,
-            times: answerTimes
-        };
-
-        try {
-            await fetch('/api/submit-pattern-result', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(resultData)
-            });
-        } catch (error) {
-            console.error('결과 저장 중 서버 통신 오류:', error);
-        }
-    }
-
-    gameContainerDiv.classList.add('hidden');
-    levelSelectionDiv.classList.remove('hidden');
-    subHeader.textContent = '도전할 레벨을 선택해주세요.';
+function finishAllTests() {
+    document.getElementById('game-container').innerHTML = `
+        <div class="text-center p-10">
+            <h2 class="text-3xl font-bold text-blue-600 mb-4">모든 검사가 완료되었습니다.</h2>
+            <p class="text-xl text-gray-700">수고하셨습니다. 결과가 모두 저장되었습니다.</p>
+            <p class="text-lg text-gray-500 mt-8">잠시 후 첫 화면으로 돌아갑니다.</p>
+        </div>
+    `;
+    setTimeout(() => {
+        window.location.href = "/";
+    }, 4000);
 }
 
-function finishTest() {
-    alert("모든 테스트가 종료되었습니다. 수고하셨습니다!");
-    window.location.href = "/";
-}
 
 // --- 이벤트 리스너 설정 ---
 sameBtn.addEventListener('click', () => checkAnswer('same'));
 differentBtn.addEventListener('click', () => checkAnswer('different'));
-nextBtn.addEventListener('click', generateNewQuestion);
-backToMenuBtn.addEventListener('click', backToMenu);
-finishTestBtn.addEventListener('click', finishTest);
 
-levelButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        const level = parseInt(button.dataset.level);
-        startGame(level);
-    });
+nextBtn.addEventListener('click', () => {
+    problemInLevel++;
+    const config = LEVEL_CONFIG[currentLevel];
+
+    if (problemInLevel > config.totalProblems) {
+        // 레벨 종료, 결과 전송
+        feedbackEl.textContent = `레벨 ${currentLevel} 종료. 결과를 저장합니다...`;
+        nextBtn.classList.add('hidden');
+        submitLevelResultsAndProceed();
+    } else {
+        // 다음 문제 진행
+        generateNewQuestion();
+    }
+});
+
+// 사용자가 중간에 테스트를 종료하고 싶을 때
+finishTestEarlyBtn.addEventListener('click', async () => {
+    const confirmExit = confirm("테스트를 중단하시겠습니까? 현재 레벨까지의 진행 상황이 저장됩니다.");
+    if (confirmExit) {
+        // 진행 중인 문제가 있으면 현재 레벨 결과 저장
+        if (answerTimes.length > 0) {
+            await submitLevelResultsAndProceed();
+        }
+        // 모든 테스트 종료 처리
+        finishAllTests();
+    }
+});
+
+
+// 페이지가 로드되면 바로 레벨 1 시작
+document.addEventListener('DOMContentLoaded', () => {
+    startLevel(1);
 });
