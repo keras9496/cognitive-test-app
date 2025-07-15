@@ -5,8 +5,12 @@ services:
     buildCommand: |
       pip install --upgrade pip
       pip install -r requirements.txt
-      flask init-db
+      flask db upgrade
     startCommand: "gunicorn --workers 4 --bind 0.0.0.0:$PORT app:app"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.13.5 # 사용하시는 파이썬 버전에 맞게 수정 가능
+        value: 3.11 # 안정적인 버전으로 수정
+      - key: SECRET_KEY # 예시, Render 대시보드에서 실제 값 설정
+        generateValue: true
+      - key: ADMIN_PASSWORD # 예시, Render 대시보드에서 실제 값 설정
+        value: "your_secure_password"

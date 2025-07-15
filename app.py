@@ -4,10 +4,11 @@ import os
 import json
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate # 추가
 
 # --- 초기 설정 ---
 app = Flask(__name__)
-app.secret_key = 'dev_secret_key_for_testing_2' # 비밀 키 변경 권장
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret_key_for_testing_2') # 환경 변수 사용 권장
 
 # --- 데이터베이스 설정 ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -18,6 +19,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'in
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db) # 추가: Migrate 객체 초기화
 
 # --- 데이터베이스 모델 정의 ---
 # 기존 시각 순서 기억 검사 결과 모델
@@ -28,7 +30,7 @@ class Result(db.Model):
     age = db.Column(db.Integer, nullable=False)
     gender = db.Column(db.String(10), nullable=False)
     test_date = db.Column(db.String(20), nullable=False)
-    test_name = db.Column(db.String(80), nullable=False)
+    test_name = db.Column(db.String(80), nullable=False, server_default='시각 순서 기억 검사') # 기본값 추가
     level = db.Column(db.String(50), nullable=False)
     correct = db.Column(db.Integer, nullable=False)
     wrong = db.Column(db.Integer, nullable=False)
@@ -52,6 +54,7 @@ class PatternResult(db.Model):
 
     def __repr__(self):
         return f'<PatternResult {self.nickname} - Level {self.level}>'
+
 
 # --- 상수 정의 ---
 LEVELS = [
@@ -294,15 +297,14 @@ def submit_pattern_result():
 
 @app.cli.command('init-db')
 def init_db_command():
-    """데이터베이스 테이블을 생성합니다."""
-    with app.app_context():
-        db.create_all()
-    print('Initialized the database.')
+    """(더 이상 사용되지 않음) 데이터베이스 테이블을 생성합니다."""
+    print('`flask init-db` is deprecated. Use `flask db upgrade`.')
 
 @app.route("/results")
 def show_results():
     password = request.args.get('pw')
-    if password != 'admin1234':
+    admin_pw = os.environ.get('ADMIN_PASSWORD', 'admin1234') # 환경 변수 사용 권장
+    if password != admin_pw:
         return "Access Denied.", 403
 
     # 각 테스트 결과를 ID 내림차순으로 가져옴
@@ -312,14 +314,14 @@ def show_results():
     # JSON으로 저장된 시간 데이터를 Python 리스트로 변환
     pattern_results = []
     for r in pattern_results_raw:
-        r.times_list = json.loads(r.times_json)
+        try:
+            r.times_list = json.loads(r.times_json)
+        except json.JSONDecodeError:
+            r.times_list = [] # JSON 파싱 오류 시 빈 리스트로 처리
         pattern_results.append(r)
         
     return render_template('results.html', sequence_results=sequence_results, pattern_results=pattern_results)
 
 
 if __name__ == "__main__":
-    # 데이터베이스 파일이 없으면 생성
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
