@@ -5,7 +5,11 @@ services:
     buildCommand: |
       pip install --upgrade pip
       pip install -r requirements.txt
+      echo "--- 현재 파일 목록 ---"
+      ls -R
+      echo "--- 마이그레이션 시작 ---"
       flask db upgrade
+      echo "--- 마이그레이션 완료 ---"
     startCommand: "gunicorn --workers 4 --bind 0.0.0.0:$PORT app:app"
     envVars:
       - key: PYTHON_VERSION
