@@ -75,7 +75,7 @@ SEQUENCE_LEVELS = [
     {'name': 'Level 2', 'box_count': 7, 'flash_count': 4},
     {'name': 'Level 3', 'box_count': 7, 'flash_count': 5},
 ]
-PROBLEMS_PER_SEQUENCE_LEVEL = 3
+PROBLEMS_PER_SEQUENCE_LEVEL = 5
 CANVAS_WIDTH = 500
 CANVAS_HEIGHT = 500
 BOX_SIZE = 50

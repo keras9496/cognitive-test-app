@@ -8,8 +8,8 @@ const ctx = canvas.getContext('2d');
 const messageLabel = document.getElementById('message-label');
 
 // --- 게임 상태 변수 ---
-let problemData = null; 
-let userSequence = []; 
+let problemData = null;
+let userSequence = [];
 let gameState = 'loading'; // loading, memorizing, answering, processing
 
 // --- 함수 정의 ---
@@ -42,11 +42,11 @@ function drawBoxes() {
 function showFlashingSequence() {
     gameState = 'memorizing';
     messageLabel.textContent = "순서를 기억하세요...";
-    
+
     let delay = 1000;
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
-        
+
         setTimeout(() => {
             if (box) {
                 ctx.fillStyle = BOX_COLOR_FLASH;
@@ -62,7 +62,7 @@ function showFlashingSequence() {
                 ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
             }
         }, delay);
-        
+
         delay += 250;
     });
 
@@ -83,7 +83,7 @@ async function submitAnswer() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ answer: userSequence })
         });
-        
+
         // 다음 문제로 넘어가는 로직은 initializeTest가 담당하므로, 여기서는 호출만 함
         await initializeTest();
 
@@ -104,19 +104,28 @@ function handleCanvasClick(event) {
     problemData.boxes.forEach(box => {
         if (x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2) {
             const boxId = box.id;
-            
-            if (!userSequence.includes(boxId)) {
+
+            // --- 수정된 부분 시작 ---
+            const boxIndex = userSequence.indexOf(boxId);
+            if (boxIndex > -1) {
+                // 이미 선택된 박스이면 배열에서 제거 (선택 해제)
+                userSequence.splice(boxIndex, 1);
+            } else {
+                // 선택되지 않은 박스이면 배열에 추가
                 userSequence.push(boxId);
             }
-            
+            // --- 수정된 부분 끝 ---
+
             drawBoxes();
 
+            // 사용자가 정답 개수만큼 모두 클릭했을 때만 정답 제출
             if (userSequence.length === problemData.flash_count) {
                 submitAnswer();
             }
         }
     });
 }
+
 
 /** 페이지가 로드되거나 다음 문제로 넘어갈 때, 서버에서 문제를 가져와 테스트 시작 */
 async function initializeTest() {
@@ -127,7 +136,7 @@ async function initializeTest() {
     try {
         const response = await fetch('/api/get-problem');
         if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
-        
+
         problemData = await response.json();
 
         // status가 'completed'이면, 첫 번째 테스트가 끝난 것이므로 다음 테스트로 이동
@@ -139,7 +148,7 @@ async function initializeTest() {
             }, 2000);
             return;
         }
-        
+
         // 다음 문제 시작
         messageLabel.textContent = `${problemData.level_name} (${problemData.problem_in_level}/${problemData.total_problems}) - 잠시 후 시작됩니다.`;
         drawBoxes();

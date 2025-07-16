@@ -86,9 +86,9 @@ const ALL_SHAPES = [
 
 // 레벨별 설정
 const LEVEL_CONFIG = {
-    1: { boxCount: 5, colorCount: 3, totalProblems: 3 },
-    2: { boxCount: 6, colorCount: 4, totalProblems: 3 },
-    3: { boxCount: 7, colorCount: 5, totalProblems: 3 }
+    1: { boxCount: 5, colorCount: 3, totalProblems: 5 },
+    2: { boxCount: 6, colorCount: 4, totalProblems: 5 },
+    3: { boxCount: 7, colorCount: 5, totalProblems: 5 }
 };
 const MAX_LEVEL = Object.keys(LEVEL_CONFIG).length;
 
