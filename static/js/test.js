@@ -41,10 +41,9 @@ function drawBoxes() {
 /** 문제의 정답 순서대로 박스를 깜빡이는 애니메이션 함수 */
 function showFlashingSequence() {
     gameState = 'memorizing';
-    // 안내 문구 수정: 깜빡일 박스 개수 안내
     messageLabel.textContent = `총 ${problemData.flash_count}개의 박스가 깜빡입니다. 순서를 기억하세요...`;
 
-    let delay = 2000; // 안내 문구를 볼 수 있도록 딜레이 증가
+    let delay = 2000;
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
 
@@ -69,24 +68,16 @@ function showFlashingSequence() {
 
     setTimeout(() => {
         gameState = 'answering';
-        // 안내 문구 수정: 정답 입력 요청
         messageLabel.textContent = "기억한 순서대로 박스를 클릭하세요!";
     }, delay);
 }
 
-/** 사용자의 답안을 서버로 전송하는 함수 */
+/** [수정됨] 사용자의 답안을 서버로 전송하는 함수 */
 async function submitAnswer() {
-     gameState = 'processing';
-     messageLabel.textContent = "결과를 확인 중입니다...";
+    gameState = 'processing';
+    messageLabel.textContent = "결과를 확인 중입니다...";
 
-     try {
-        await fetch('/api/submit-answer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ answer: userSequence })
-        });
-        // 다음 문제 로딩은 initializeTest에서 처리
-        await initializeTest();
+    try {
         const res = await fetch('/api/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -94,29 +85,25 @@ async function submitAnswer() {
         });
         const result = await res.json();
 
-        if (result.correct) {
+        if (result.status === 'game_over') {
+            messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
+            // 결과 페이지로 이동 (필요 시 암호 등 수정)
+            setTimeout(() => {
+                window.location.href = `/results?pw=${"your_admin_password"}`;
+            }, 2000);
+        } else if (result.correct) {
             messageLabel.textContent = `정답입니다! Level ${result.current_level - 1} → ${result.current_level}`;
             // 다음 레벨 문제로 넘어가기 전에 잠시 대기
-            setTimeout(async () => {
-                await initializeTest();
-            }, 1500);
-        } else if (result.chances_left > 0) {
+            setTimeout(initializeTest, 1500);
+        } else { // incorrect
             messageLabel.textContent = `틀렸습니다. 남은 기회: ${result.chances_left}회. 동일 레벨을 다시 진행합니다.`;
-            setTimeout(async () => {
-                await initializeTest();
-            }, 1500);
-        } else {
-            messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
-            // 필요 시 결과 페이지로 이동
-            setTimeout(() => {
-                window.location.href = '/results?pw=관리자암호';
-            }, 2000);
+            setTimeout(initializeTest, 1500);
         }
-     } catch(error) {
-         messageLabel.textContent = '서버 통신에 실패했습니다.';
-         console.error('Submit Answer Error:', error);
-     }
- }
+    } catch (error) {
+        messageLabel.textContent = '서버 통신에 실패했습니다.';
+        console.error('Submit Answer Error:', error);
+    }
+}
 
 /** 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
@@ -126,24 +113,27 @@ function handleCanvasClick(event) {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    problemData.boxes.forEach(box => {
-        if (x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2) {
-            const boxId = box.id;
-            const boxIndex = userSequence.indexOf(boxId);
-            
-            if (boxIndex > -1) {
-                userSequence.splice(boxIndex, 1);
-            } else {
-                userSequence.push(boxId);
-            }
-            
-            drawBoxes();
+    const clickedBox = problemData.boxes.find(box =>
+        x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2
+    );
 
-            if (userSequence.length === problemData.flash_count) {
-                submitAnswer();
-            }
+    if (clickedBox) {
+        const boxId = clickedBox.id;
+        const boxIndex = userSequence.indexOf(boxId);
+        
+        if (boxIndex > -1) {
+            // 이미 선택된 박스 다시 클릭 시 선택 취소 (선택 사항)
+            // userSequence.splice(boxIndex, 1);
+        } else {
+            userSequence.push(boxId);
         }
-    });
+        
+        drawBoxes();
+
+        if (userSequence.length === problemData.flash_count) {
+            submitAnswer();
+        }
+    }
 }
 
 
@@ -158,14 +148,6 @@ async function initializeTest() {
         if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
 
         problemData = await response.json();
-
-        if (problemData.status === 'completed') {
-            messageLabel.textContent = problemData.message;
-            setTimeout(() => {
-                window.location.href = problemData.next_url;
-            }, 2000);
-            return;
-        }
 
         if (problemData.error) {
             messageLabel.textContent = `오류: ${problemData.error}`;
