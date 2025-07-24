@@ -10,22 +10,31 @@ app.secret_key = os.urandom(24)
 app.permanent_session_lifetime = timedelta(minutes=30)
 
 # 관리자 암호 (실제 환경에서는 환경 변수 등을 사용하세요)
+# Render.com의 'Environment' 탭에서 ADMIN_PASSWORD를 설정하는 것을 권장합니다.
+# 예: ADMIN_PASSWORD = w123456789
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "your_admin_password")
 
-# [수정됨] 데이터 저장 경로를 Render의 영구 디스크 경로인 instance 폴더로 변경
+# 데이터 저장을 위한 instance 폴더 설정 (Render의 영구 디스크 경로)
 INSTANCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 ALL_RESULTS_FILE = os.path.join(INSTANCE_FOLDER, 'all_results.json')
 
 def load_all_results():
     """모든 사용자 결과를 파일에서 불러옵니다."""
+    # instance 폴더가 없으면 생성
+    os.makedirs(INSTANCE_FOLDER, exist_ok=True)
     if not os.path.exists(ALL_RESULTS_FILE) or os.path.getsize(ALL_RESULTS_FILE) == 0:
+        # 파일이 없거나 비어있으면 빈 리스트 반환
         return []
-    with open(ALL_RESULTS_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(ALL_RESULTS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        # JSON 형식이 잘못된 경우 빈 리스트 반환
+        return []
 
 def save_all_results(data):
     """모든 사용자 결과를 파일에 저장합니다."""
-    # [수정됨] 저장 전 instance 폴더가 있는지 확인하고 없으면 생성
+    # instance 폴더가 없으면 생성
     os.makedirs(INSTANCE_FOLDER, exist_ok=True)
     with open(ALL_RESULTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
@@ -53,9 +62,10 @@ def start_test():
         'gender': request.form.get('gender', 'N/A'),
         'test_date': request.form.get('test_date', 'N/A')
     }
+    # permanent 세션으로 설정
+    session.permanent = True
     return redirect(url_for('practice'))
 
-# ... (이전과 동일한 다른 라우트들) ...
 @app.route('/practice')
 def practice():
     if 'user_info' not in session:
@@ -72,6 +82,8 @@ def test():
 
 @app.route('/intermission')
 def intermission():
+    if 'user_info' not in session:
+        return redirect(url_for('index'))
     level = session.get('current_level', 0)
     problem = create_sequence_problem(level)
     session['current_problem'] = problem
@@ -115,7 +127,11 @@ def create_sequence_problem(level):
     else:
         num_boxes = level + 4
         sequence_length = level + 1
-    flash_sequence = random.sample(range(num_boxes), sequence_length)
+    
+    # 중복되지 않는 숫자로 시퀀스 생성
+    all_box_ids = list(range(num_boxes))
+    flash_sequence = random.sample(all_box_ids, sequence_length)
+    
     boxes = generate_box_positions(num_boxes, 500, 500)
     return {"boxes": boxes, "flash_sequence": flash_sequence, "flash_count": sequence_length}
 
@@ -128,26 +144,36 @@ def get_current_problem():
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
-    user_answer = request.json.get('answer')
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    user_answer = data.get('answer')
     level = session.get('current_level', 0)
     problem = session.get('current_problem')
+
     if not problem:
         return jsonify({"error": "No problem in session"}), 400
+
     correct_answer = problem['flash_sequence']
     is_correct = (user_answer == correct_answer)
+    
     similarity = 0
-    if not is_correct:
+    if not is_correct and user_answer is not None:
         correct_items_at_position = sum(1 for i in range(len(correct_answer)) if i < len(user_answer) and user_answer[i] == correct_answer[i])
         if len(correct_answer) > 0:
             similarity = correct_items_at_position / len(correct_answer)
+
     if level > 0:
         session['history'].append({"level": level, "correct": is_correct, "user_answer": user_answer, "correct_answer": correct_answer, "similarity": similarity})
+
     if level == 0:
         if is_correct:
             session['current_level'] = 1
             return jsonify({"status": "correct_practice"})
         else:
             return jsonify({"status": "incorrect_practice"})
+
     if is_correct:
         session['current_level'] += 1
         session['chances_left'] = 2
@@ -157,22 +183,31 @@ def submit_answer():
         if session['chances_left'] <= 0:
             status = "game_over"
             all_results = load_all_results()
-            final_score = {"user_info": session.get('user_info', {}), "final_level": level, "history": session.get('history', [])}
+            final_score = {
+                "user_info": session.get('user_info', {}), 
+                "final_level": level, 
+                "history": session.get('history', [])
+            }
             all_results.append(final_score)
             save_all_results(all_results)
         else:
             status = "retry"
+            
     session.modified = True
     return jsonify({"status": status, "correct": is_correct, "chances_left": session.get('chances_left')})
 
 @app.route('/results')
 def results():
+    """관리자 암호 확인 후 모든 결과를 results.html 템플릿으로 렌더링합니다."""
     password = request.args.get('pw')
     if password != ADMIN_PASSWORD:
         return "접근 권한이 없습니다.", 403
+    
     all_results = load_all_results()
+    # 각 결과에 고유 ID 부여 (템플릿에서 식별하기 위함)
     for i, res in enumerate(all_results):
         res['id'] = i + 1
+        
     return render_template('results.html', all_results=all_results, pattern_results=[])
 
 @app.route('/finish')
@@ -191,11 +226,11 @@ def download_results():
         return send_file(
             ALL_RESULTS_FILE,
             as_attachment=True,
-            download_name='results_backup.json' # 다운로드 시 파일 이름
+            download_name='cognitive_test_results.json' # 다운로드 시 파일 이름
         )
     except FileNotFoundError:
         return "결과 파일이 아직 생성되지 않았습니다.", 404
 
-
 if __name__ == '__main__':
+    # 로컬 테스트 시에만 debug=True 사용
     app.run(debug=True)
