@@ -17,6 +17,9 @@ def load_all_results():
     """모든 사용자 결과를 파일에서 불러옵니다."""
     if not os.path.exists(ALL_RESULTS_FILE):
         return []
+    # 파일이 비어있는 경우 예외 처리
+    if os.path.getsize(ALL_RESULTS_FILE) == 0:
+        return []
     with open(ALL_RESULTS_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
@@ -27,22 +30,41 @@ def save_all_results(data):
 
 def init_session():
     """세션을 초기화합니다."""
+    # user_info를 제외한 게임 관련 정보만 초기화하도록 수정
+    user_info = session.get('user_info', {})
     session.clear()
+    session['user_info'] = user_info # 사용자 정보는 유지
     session['current_level'] = 1
-    session['chances_left'] = 2  # 각 레벨당 기회
-    session['history'] = []  # (level, correct, user_answer, correct_answer)
-    session['user_info'] = {}
+    session['chances_left'] = 2
+    session['history'] = []
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# [수정됨] 사용자 정보 입력 폼을 처리하는 라우트 추가
+@app.route('/start-test', methods=['POST'])
+def start_test():
+    """사용자 정보를 받아 세션에 저장하고 테스트 페이지로 리디렉션합니다."""
+    session.clear() # 새 사용자를 위해 세션 완전 초기화
+    session['user_info'] = {
+        'name': request.form.get('name', '익명'),
+        'age': request.form.get('age', 'N/A'),
+        'gender': request.form.get('gender', 'N/A'),
+        'test_date': request.form.get('test_date', 'N/A')
+    }
+    return redirect(url_for('test'))
+
+# [수정됨] 테스트 페이지 라우트 로직 변경
 @app.route('/test')
 def test():
+    """세션에 사용자 정보가 있는지 확인하고 테스트 페이지를 렌더링합니다."""
+    # 만약 사용자가 정보 입력 없이 /test로 직접 접근하면 시작 페이지로 보냅니다.
+    if 'user_info' not in session:
+        return redirect(url_for('index'))
+    
+    # 테스트 시작을 위해 게임 관련 세션만 초기화
     init_session()
-    user_name = request.args.get('name', '익명')
-    user_group = request.args.get('group', '미지정')
-    session['user_info'] = {'name': user_name, 'group': user_group}
     return render_template('test.html')
 
 def create_sequence_problem(level):
@@ -70,7 +92,6 @@ def get_problem():
     session['current_problem'] = problem
     session.modified = True
     
-    # 프론트엔드가 현재 상태를 알 수 있도록 레벨과 기회 정보를 함께 반환
     return jsonify({
         **problem,
         "current_level": current_level,
@@ -101,15 +122,12 @@ def submit_answer():
 
     status = "next_problem"
     if is_correct:
-        # 정답: 레벨업, 기회 초기화
         session['current_level'] += 1
         session['chances_left'] = 2
     else:
-        # 오답: 기회 감소
         session['chances_left'] -= 1
         if session['chances_left'] <= 0:
             status = "game_over"
-            # 게임 종료 시 결과 저장
             all_results = load_all_results()
             final_score = {
                 "user_info": session.get('user_info', {}),
@@ -121,7 +139,6 @@ def submit_answer():
 
     session.modified = True
     
-    # 프론트엔드에서 다음 행동을 결정할 수 있도록 상태 정보를 포함하여 반환
     return jsonify({
         "status": status,
         "correct": is_correct,
@@ -137,7 +154,9 @@ def results():
         return "접근 권한이 없습니다.", 403
     
     all_results = load_all_results()
-    return render_template('results.html', results=all_results)
+    # results.html 템플릿에 맞게 데이터 구조 변경
+    return render_template('results.html', sequence_results=all_results, pattern_results=[])
+
 
 if __name__ == '__main__':
     app.run(debug=True)
