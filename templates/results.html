@@ -9,7 +9,11 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
         tr:nth-child(even) { background-color: #f9f9f9; }
-        h1, h2 { border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px;}
+        h1, h2 { border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .details-table th, .details-table td { background-color: #fff; border: 1px solid #eee; }
+        .details-table { margin-left: 20px; width: calc(100% - 20px); }
+        .correct { color: green; }
+        .incorrect { color: red; }
     </style>
 </head>
 <body>
@@ -21,27 +25,52 @@
             <tr>
                 <th>ID</th>
                 <th>이름</th>
-                <th>나이</th>
-                <th>성별</th>
-                <th>날짜</th>
-                <th>레벨</th>
-                <th>정답</th>
-                <th>오답</th>
-                <th>평균 유사도</th>
+                <th>나이/성별</th>
+                <th>검사 날짜</th>
+                <th>최종 레벨</th>
+                <th>상세 기록</th>
             </tr>
         </thead>
         <tbody>
-            {% for result in sequence_results %}
+            {% for result in all_results %}
             <tr>
                 <td>{{ result.id }}</td>
-                <td>{{ result.name }}</td>
-                <td>{{ result.age }}</td>
-                <td>{{ result.gender }}</td>
-                <td>{{ result.test_date }}</td>
-                <td>{{ result.level }}</td>
-                <td>{{ result.correct }}</td>
-                <td>{{ result.wrong }}</td>
-                <td>{{ "%.2f"|format(result.avg_similarity * 100) }}%</td>
+                <td>{{ result.user_info.name }}</td>
+                <td>{{ result.user_info.age }} / {{ result.user_info.gender }}</td>
+                <td>{{ result.user_info.test_date }}</td>
+                <td>{{ result.final_level }}</td>
+                <td>
+                    <table class="details-table">
+                        <thead>
+                            <tr>
+                                <th>레벨</th>
+                                <th>결과</th>
+                                <th>유사도 (오답 시)</th>
+                                <th>제출 답안</th>
+                                <th>정답</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attempt in result.history %}
+                            <tr>
+                                <td>{{ attempt.level }}</td>
+                                <td class="{{ 'correct' if attempt.correct else 'incorrect' }}">
+                                    {{ '정답' if attempt.correct else '오답' }}
+                                </td>
+                                <td>
+                                    {% if not attempt.correct %}
+                                        {{ "%.2f"|format(attempt.similarity * 100) }}%
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ attempt.user_answer }}</td>
+                                <td>{{ attempt.correct_answer }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
