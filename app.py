@@ -158,7 +158,6 @@ def start_test():
     """사용자 정보를 받아 세션을 초기화하고 연습 페이지로 이동시킵니다."""
     try:
         session.clear()
-        # nickname 제거
         session['name'] = request.form.get('name', '').strip()
         session['age'] = int(request.form.get('age', 0))
         session['gender'] = request.form.get('gender', '').strip()
@@ -167,13 +166,14 @@ def start_test():
         if not all([session['name'], session['age'], session['gender'], session['test_date']]):
             return redirect(url_for('index'))
 
-        # 새로운 레벨 시스템을 위한 세션 초기화
+        # 새로운 레벨 시스템을 위한 세션 초기화 (정수형으로 명확히 설정)
         session['current_level'] = 1
-        session['chances_left'] = 2 # 각 레벨당 기회 (2번 = 처음 시도 + 재시도)
-        session['level_results'] = {} # 레벨별 결과 저장
+        session['chances_left'] = 2  # 각 레벨당 기회 (첫 시도 + 재시도)
+        session['level_results'] = {}  # 빈 딕셔너리로 초기화
         session['sequence_test_completed'] = False
 
         session.modified = True
+        print(f"세션 초기화 완료: 레벨 {session['current_level']}, 기회 {session['chances_left']}")
         return redirect(url_for('practice_page'))
 
     except (ValueError, TypeError) as e:
@@ -279,28 +279,37 @@ def submit_answer():
         correct_answer = current_problem['flash_sequence']
         is_correct = (user_answer == correct_answer)
         
-        level = session.get('current_level', 1)
-        if level not in session.get('level_results', {}):
-            session['level_results'][level] = {'correct': 0, 'wrong': 0, 'similarities': []}
+        current_level = session.get('current_level', 1)
+        
+        # level_results 초기화 (정수 키로 통일)
+        if 'level_results' not in session:
+            session['level_results'] = {}
+        
+        if current_level not in session['level_results']:
+            session['level_results'][current_level] = {'correct': 0, 'wrong': 0, 'similarities': []}
 
+        # 유사도 계산 및 저장
         matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
         similarity = matches / len(correct_answer) if correct_answer else 0
-        session['level_results'][level]['similarities'].append(similarity)
+        session['level_results'][current_level]['similarities'].append(similarity)
 
         if is_correct:
             # 정답일 경우: 레벨을 올리고 기회를 2번으로 초기화
-            session['level_results'][level]['correct'] += 1
-            session['current_level'] += 1
+            session['level_results'][current_level]['correct'] += 1
+            session['current_level'] = current_level + 1  # 명시적으로 1 증가
             session['chances_left'] = 2
+            print(f"정답! 레벨 {current_level} -> {session['current_level']}로 증가")
             
         else:
             # 오답일 경우: 기회를 1번 줄임
-            session['level_results'][level]['wrong'] += 1
-            session['chances_left'] -= 1
+            session['level_results'][current_level]['wrong'] += 1
+            session['chances_left'] = session.get('chances_left', 2) - 1
+            print(f"오답! 레벨 {current_level}, 남은 기회: {session['chances_left']}")
             
             # 남은 기회가 없으면 테스트 종료 플래그 설정
             if session['chances_left'] <= 0:
                 session['sequence_test_completed'] = True
+                print("테스트 종료")
 
         session.modified = True
         return jsonify({"status": "next_problem", "correct": is_correct})
