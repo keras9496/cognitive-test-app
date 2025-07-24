@@ -41,9 +41,10 @@ function drawBoxes() {
 /** 문제의 정답 순서대로 박스를 깜빡이는 애니메이션 함수 */
 function showFlashingSequence() {
     gameState = 'memorizing';
-    messageLabel.textContent = "순서를 기억하세요...";
+    // 안내 문구 수정: 깜빡일 박스 개수 안내
+    messageLabel.textContent = `총 ${problemData.flash_count}개의 박스가 깜빡입니다. 순서를 기억하세요...`;
 
-    let delay = 1000;
+    let delay = 2000; // 안내 문구를 볼 수 있도록 딜레이 증가
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
 
@@ -68,7 +69,8 @@ function showFlashingSequence() {
 
     setTimeout(() => {
         gameState = 'answering';
-        messageLabel.textContent = "기억한 순서대로 클릭하세요!";
+        // 안내 문구 수정: 정답 입력 요청
+        messageLabel.textContent = "기억한 순서대로 박스를 클릭하세요!";
     }, delay);
 }
 
@@ -78,13 +80,12 @@ async function submitAnswer() {
     messageLabel.textContent = "결과를 확인 중입니다...";
 
     try {
-        const response = await fetch('/api/submit-answer', {
+        await fetch('/api/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ answer: userSequence })
         });
-
-        // 다음 문제로 넘어가는 로직은 initializeTest가 담당하므로, 여기서는 호출만 함
+        // 다음 문제 로딩은 initializeTest에서 처리
         await initializeTest();
 
     } catch(error) {
@@ -104,21 +105,16 @@ function handleCanvasClick(event) {
     problemData.boxes.forEach(box => {
         if (x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2) {
             const boxId = box.id;
-
-            // --- 수정된 부분 시작 ---
             const boxIndex = userSequence.indexOf(boxId);
+            
             if (boxIndex > -1) {
-                // 이미 선택된 박스이면 배열에서 제거 (선택 해제)
                 userSequence.splice(boxIndex, 1);
             } else {
-                // 선택되지 않은 박스이면 배열에 추가
                 userSequence.push(boxId);
             }
-            // --- 수정된 부분 끝 ---
-
+            
             drawBoxes();
 
-            // 사용자가 정답 개수만큼 모두 클릭했을 때만 정답 제출
             if (userSequence.length === problemData.flash_count) {
                 submitAnswer();
             }
@@ -139,20 +135,22 @@ async function initializeTest() {
 
         problemData = await response.json();
 
-        // status가 'completed'이면, 첫 번째 테스트가 끝난 것이므로 다음 테스트로 이동
-        if(problemData.status === 'completed') {
+        if (problemData.status === 'completed') {
             messageLabel.textContent = problemData.message;
-            // 서버에서 받은 next_url로 2초 후 이동
             setTimeout(() => {
                 window.location.href = problemData.next_url;
             }, 2000);
             return;
         }
 
-        // 다음 문제 시작
-        messageLabel.textContent = `${problemData.level_name} (${problemData.problem_in_level}/${problemData.total_problems}) - 잠시 후 시작됩니다.`;
+        if (problemData.error) {
+            messageLabel.textContent = `오류: ${problemData.error}`;
+            return;
+        }
+
+        messageLabel.textContent = `${problemData.level_name} - 잠시 후 시작됩니다.`;
         drawBoxes();
-        setTimeout(showFlashingSequence, 1500);
+        setTimeout(showFlashingSequence, 2000);
 
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;
@@ -160,8 +158,5 @@ async function initializeTest() {
     }
 }
 
-// 캔버스에 클릭 이벤트 리스너 추가
 canvas.addEventListener('click', handleCanvasClick);
-
-// 페이지가 처음 로드될 때 테스트 시작
 document.addEventListener('DOMContentLoaded', initializeTest);
