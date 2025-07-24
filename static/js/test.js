@@ -87,13 +87,12 @@ async function submitAnswer() {
 
         if (result.status === 'game_over') {
             messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
-            // 결과 페이지로 이동 (필요 시 암호 등 수정)
+            // 서버에서 받은 암호를 사용하여 결과 페이지로 이동
             setTimeout(() => {
-                window.location.href = `/results?pw=${"your_admin_password"}`;
+                window.location.href = `/results?pw=${result.admin_pw}`;
             }, 2000);
         } else if (result.correct) {
             messageLabel.textContent = `정답입니다! Level ${result.current_level - 1} → ${result.current_level}`;
-            // 다음 레벨 문제로 넘어가기 전에 잠시 대기
             setTimeout(initializeTest, 1500);
         } else { // incorrect
             messageLabel.textContent = `틀렸습니다. 남은 기회: ${result.chances_left}회. 동일 레벨을 다시 진행합니다.`;
@@ -105,7 +104,7 @@ async function submitAnswer() {
     }
 }
 
-/** 캔버스 클릭 이벤트 처리 함수 */
+/** [수정됨] 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
     if (gameState !== 'answering') return;
 
@@ -122,14 +121,15 @@ function handleCanvasClick(event) {
         const boxIndex = userSequence.indexOf(boxId);
         
         if (boxIndex > -1) {
-            // 이미 선택된 박스 다시 클릭 시 선택 취소 (선택 사항)
-            // userSequence.splice(boxIndex, 1);
+            // 이미 선택된 박스를 다시 클릭하면 선택 취소
+            userSequence.splice(boxIndex, 1);
         } else {
             userSequence.push(boxId);
         }
         
         drawBoxes();
 
+        // 모든 박스를 선택해야만 답안 제출
         if (userSequence.length === problemData.flash_count) {
             submitAnswer();
         }

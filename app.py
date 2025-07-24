@@ -15,10 +15,7 @@ ALL_RESULTS_FILE = 'all_results.json'
 
 def load_all_results():
     """모든 사용자 결과를 파일에서 불러옵니다."""
-    if not os.path.exists(ALL_RESULTS_FILE):
-        return []
-    # 파일이 비어있는 경우 예외 처리
-    if os.path.getsize(ALL_RESULTS_FILE) == 0:
+    if not os.path.exists(ALL_RESULTS_FILE) or os.path.getsize(ALL_RESULTS_FILE) == 0:
         return []
     with open(ALL_RESULTS_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
@@ -63,50 +60,40 @@ def test():
     return render_template('test.html')
 
 def generate_box_positions(num_boxes, canvas_width, canvas_height):
-    """캔버스 내에 박스 좌표들을 생성합니다."""
+    """[수정됨] 캔버스 내에 박스 좌표들을 무작위로 생성합니다."""
     boxes = []
-    margin = 50
     box_size = 80
-    gap = 20
-    
-    # 그리드 레이아웃 계산
-    cols = 3 if num_boxes > 4 else (2 if num_boxes > 1 else 1)
-    if num_boxes == 3:
-        cols = 3
-    elif num_boxes == 5:
-        cols = 3
-    elif num_boxes == 6:
-        cols = 3
-        
-    rows = (num_boxes + cols - 1) // cols
-    
-    grid_width = cols * box_size + (cols - 1) * gap
-    grid_height = rows * box_size + (rows - 1) * gap
-    
-    start_x = (canvas_width - grid_width) / 2
-    start_y = (canvas_height - grid_height) / 2
+    min_gap = 10 
 
     for i in range(num_boxes):
-        row = i // cols
-        col = i % cols
-        x1 = start_x + col * (box_size + gap)
-        y1 = start_y + row * (box_size + gap)
-        boxes.append({
-            "id": i,
-            "x1": x1,
-            "y1": y1,
-            "x2": x1 + box_size,
-            "y2": y1 + box_size,
-        })
+        while True:
+            x1 = random.randint(min_gap, canvas_width - box_size - min_gap)
+            y1 = random.randint(min_gap, canvas_height - box_size - min_gap)
+            x2 = x1 + box_size
+            y2 = y1 + box_size
+
+            # 다른 박스와 겹치지 않는지 확인
+            is_overlapping = False
+            for other_box in boxes:
+                if not (x2 < other_box['x1'] - min_gap or
+                        x1 > other_box['x2'] + min_gap or
+                        y2 < other_box['y1'] - min_gap or
+                        y1 > other_box['y2'] + min_gap):
+                    is_overlapping = True
+                    break
+            
+            if not is_overlapping:
+                boxes.append({"id": i, "x1": x1, "y1": y1, "x2": x2, "y2": y2})
+                break
     return boxes
 
 def create_sequence_problem(level):
-    """[수정됨] 지정된 레벨에 맞는 순서 기억력 문제를 생성합니다."""
+    """지정된 레벨에 맞는 순서 기억력 문제를 생성합니다."""
     num_boxes = level + 2
     sequence_length = level + 1
     
     flash_sequence = random.sample(range(num_boxes), sequence_length)
-    boxes = generate_box_positions(num_boxes, 500, 500) # 캔버스 크기 (500, 500)
+    boxes = generate_box_positions(num_boxes, 500, 500)
     
     return {
         "boxes": boxes,
@@ -117,7 +104,7 @@ def create_sequence_problem(level):
 
 @app.route('/api/get-problem', methods=['GET'])
 def get_problem():
-    """[수정됨] 현재 레벨에 맞는 새로운 문제를 생성하여 반환합니다."""
+    """현재 레벨에 맞는 새로운 문제를 생성하여 반환합니다."""
     if 'current_level' not in session:
         init_session()
 
@@ -136,6 +123,7 @@ def get_problem():
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
+    """[수정됨] 사용자가 제출한 답을 확인하고 결과를 반환합니다."""
     data = request.json
     user_answer = data.get('answer')
     
@@ -143,7 +131,7 @@ def submit_answer():
     if not problem:
         return jsonify({"error": "No problem found in session"}), 400
 
-    correct_answer = problem['flash_sequence'] # 'sequence' -> 'flash_sequence'
+    correct_answer = problem['flash_sequence']
     is_correct = (user_answer == correct_answer)
     
     level = session.get('current_level', 1)
@@ -178,17 +166,39 @@ def submit_answer():
         "status": status,
         "correct": is_correct,
         "current_level": session.get('current_level'),
-        "chances_left": session.get('chances_left')
+        "chances_left": session.get('chances_left'),
+        "admin_pw": ADMIN_PASSWORD # 결과 페이지 접근을 위해 암호 전달
     })
 
 @app.route('/results')
 def results():
+    """[수정됨] 관리자가 모든 테스트 결과를 볼 수 있는 페이지입니다."""
     password = request.args.get('pw')
     if password != ADMIN_PASSWORD:
         return "접근 권한이 없습니다.", 403
     
     all_results = load_all_results()
-    return render_template('results.html', sequence_results=all_results, pattern_results=[])
+    
+    # 템플릿에 맞게 데이터 가공
+    processed_results = []
+    for i, res in enumerate(all_results):
+        # 정답 및 오답 개수 계산
+        correct_count = sum(1 for item in res['history'] if item['correct'])
+        wrong_count = len(res['history']) - correct_count
+        
+        processed_results.append({
+            "id": i + 1,
+            "name": res['user_info'].get('name'),
+            "age": res['user_info'].get('age'),
+            "gender": res['user_info'].get('gender'),
+            "test_date": res['user_info'].get('test_date'),
+            "level": res['final_level'],
+            "correct": correct_count,
+            "wrong": wrong_count,
+            "avg_similarity": 0 # 이 값은 현재 계산 로직이 없으므로 0으로 설정
+        })
+
+    return render_template('results.html', sequence_results=processed_results, pattern_results=[])
 
 
 if __name__ == '__main__':
