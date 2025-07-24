@@ -7,14 +7,12 @@ const canvas = document.getElementById('practice-canvas');
 const ctx = canvas.getContext('2d');
 const messageLabel = document.getElementById('message-label');
 const instructionP = document.getElementById('instruction');
-const startMainTestBtn = document.getElementById('start-main-test-btn'); // 새로 추가된 버튼
+const startMainTestBtn = document.getElementById('start-main-test-btn');
 
 // --- 게임 상태 변수 ---
 let problemData = null; 
 let userSequence = []; 
 let gameState = 'loading'; // loading, memorizing, answering, processing
-
-// --- 함수 정의 ---
 
 /** 박스를 캔버스에 그리는 함수 */
 function drawBoxes() {
@@ -90,12 +88,10 @@ async function submitAnswer() {
         const result = await response.json();
 
         if (result.status === 'correct') {
-            // 정답일 경우, 자동 이동 대신 버튼을 보여줌
             messageLabel.textContent = result.message;
-            canvas.style.display = 'none'; // 캔버스 숨기기
-            startMainTestBtn.style.display = 'block'; // 버튼 보여주기
+            canvas.style.display = 'none';
+            startMainTestBtn.style.display = 'block';
         } else if (result.status === 'incorrect') {
-            // 오답
             messageLabel.textContent = result.message;
             setTimeout(retryPractice, 1500);
         } else {
@@ -111,7 +107,10 @@ async function submitAnswer() {
 function retryPractice() {
     userSequence = [];
     drawBoxes();
-    setTimeout(showFlashingSequence, 1000);
+    // 다시 안내창을 띄우고 시작
+    if (confirm(`이번에는 ${problemData.flash_count}개의 박스가 깜빡입니다. 준비되셨나요?`)) {
+        showFlashingSequence();
+    }
 }
 
 /** 캔버스 클릭 이벤트 처리 함수 */
@@ -122,21 +121,26 @@ function handleCanvasClick(event) {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    problemData.boxes.forEach(box => {
-        if (x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2) {
-            const boxId = box.id;
-            
-            if (!userSequence.includes(boxId)) {
-                 userSequence.push(boxId);
-            }
-            
-            drawBoxes();
+    const clickedBox = problemData.boxes.find(box =>
+        x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2
+    );
 
-            if (userSequence.length === problemData.flash_count) {
-                submitAnswer();
-            }
+    if (clickedBox) {
+        const boxId = clickedBox.id;
+        const boxIndex = userSequence.indexOf(boxId);
+        
+        if (boxIndex > -1) {
+            userSequence.splice(boxIndex, 1);
+        } else {
+            userSequence.push(boxId);
         }
-    });
+        
+        drawBoxes();
+
+        if (userSequence.length === problemData.flash_count) {
+            submitAnswer();
+        }
+    }
 }
 
 /** 페이지가 로드될 때, 서버에서 연습 문제를 가져와 테스트 시작 */
@@ -151,7 +155,13 @@ async function initializePracticeTest() {
         problemData = await response.json();
         userSequence = [];
         drawBoxes();
-        setTimeout(showFlashingSequence, 3000);
+        
+        // 잠시 후 안내창과 함께 시작
+        setTimeout(() => {
+            if (confirm(`이번에는 ${problemData.flash_count}개의 박스가 깜빡입니다. 준비되셨나요?`)) {
+                showFlashingSequence();
+            }
+        }, 1000);
 
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;
@@ -164,8 +174,5 @@ startMainTestBtn.addEventListener('click', () => {
     window.location.href = '/test';
 });
 
-// 캔버스에 클릭 이벤트 리스너 추가
 canvas.addEventListener('click', handleCanvasClick);
-
-// 페이지가 처음 로드될 때 테스트 시작
 document.addEventListener('DOMContentLoaded', initializePracticeTest);

@@ -40,7 +40,7 @@ def index():
 
 @app.route('/start-test', methods=['POST'])
 def start_test():
-    """사용자 정보를 받아 세션에 저장하고 테스트 페이지로 리디렉션합니다."""
+    """[수정됨] 사용자 정보를 세션에 저장하고 '연습' 페이지로 리디렉션합니다."""
     session.clear()
     session['user_info'] = {
         'name': request.form.get('name', '익명'),
@@ -48,7 +48,17 @@ def start_test():
         'gender': request.form.get('gender', 'N/A'),
         'test_date': request.form.get('test_date', 'N/A')
     }
-    return redirect(url_for('test'))
+    # 본 테스트 전 연습 페이지로 이동
+    return redirect(url_for('practice'))
+
+# [신규] 연습 페이지 라우트
+@app.route('/practice')
+def practice():
+    """연습 문제 페이지를 렌더링합니다."""
+    if 'user_info' not in session:
+        return redirect(url_for('index'))
+    return render_template('practice.html')
+
 
 @app.route('/test')
 def test():
@@ -60,7 +70,7 @@ def test():
     return render_template('test.html')
 
 def generate_box_positions(num_boxes, canvas_width, canvas_height):
-    """[수정됨] 캔버스 내에 박스 좌표들을 무작위로 생성합니다."""
+    """캔버스 내에 박스 좌표들을 무작위로 생성합니다."""
     boxes = []
     box_size = 80
     min_gap = 10 
@@ -72,7 +82,6 @@ def generate_box_positions(num_boxes, canvas_width, canvas_height):
             x2 = x1 + box_size
             y2 = y1 + box_size
 
-            # 다른 박스와 겹치지 않는지 확인
             is_overlapping = False
             for other_box in boxes:
                 if not (x2 < other_box['x1'] - min_gap or
@@ -88,8 +97,9 @@ def generate_box_positions(num_boxes, canvas_width, canvas_height):
     return boxes
 
 def create_sequence_problem(level):
-    """지정된 레벨에 맞는 순서 기억력 문제를 생성합니다."""
-    num_boxes = level + 2
+    """[수정됨] 지정된 레벨에 맞는 문제를 생성합니다. (박스 2개 추가)"""
+    # 모든 레벨에서 박스를 2개씩 더 추가
+    num_boxes = level + 4 
     sequence_length = level + 1
     
     flash_sequence = random.sample(range(num_boxes), sequence_length)
@@ -98,9 +108,33 @@ def create_sequence_problem(level):
     return {
         "boxes": boxes,
         "flash_sequence": flash_sequence,
-        "flash_count": sequence_length,
-        "level_name": f"Level {level}"
+        "flash_count": sequence_length
     }
+
+# [신규] 연습 문제 생성 API
+@app.route('/api/get-practice-problem', methods=['GET'])
+def get_practice_problem():
+    """레벨 0에 해당하는 연습 문제를 생성하여 반환합니다."""
+    problem = create_sequence_problem(0) # 레벨 0
+    session['practice_problem'] = problem
+    session.modified = True
+    return jsonify(problem)
+
+# [신규] 연습 문제 정답 제출 API
+@app.route('/api/submit-practice-answer', methods=['POST'])
+def submit_practice_answer():
+    """연습 문제의 정답을 확인합니다."""
+    user_answer = request.json.get('answer')
+    problem = session.get('practice_problem')
+    if not problem:
+        return jsonify({"status": "error", "message": "연습 문제를 찾을 수 없습니다."})
+
+    is_correct = (user_answer == problem['flash_sequence'])
+    if is_correct:
+        return jsonify({"status": "correct", "message": "정답입니다! 잠시 후 본 테스트를 시작합니다."})
+    else:
+        return jsonify({"status": "incorrect", "message": "틀렸습니다. 다시 시도해보세요."})
+
 
 @app.route('/api/get-problem', methods=['GET'])
 def get_problem():
@@ -123,7 +157,6 @@ def get_problem():
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
-    """[수정됨] 사용자가 제출한 답을 확인하고 결과를 반환합니다."""
     data = request.json
     user_answer = data.get('answer')
     
@@ -167,22 +200,19 @@ def submit_answer():
         "correct": is_correct,
         "current_level": session.get('current_level'),
         "chances_left": session.get('chances_left'),
-        "admin_pw": ADMIN_PASSWORD # 결과 페이지 접근을 위해 암호 전달
+        "admin_pw": ADMIN_PASSWORD
     })
 
 @app.route('/results')
 def results():
-    """[수정됨] 관리자가 모든 테스트 결과를 볼 수 있는 페이지입니다."""
     password = request.args.get('pw')
     if password != ADMIN_PASSWORD:
         return "접근 권한이 없습니다.", 403
     
     all_results = load_all_results()
     
-    # 템플릿에 맞게 데이터 가공
     processed_results = []
     for i, res in enumerate(all_results):
-        # 정답 및 오답 개수 계산
         correct_count = sum(1 for item in res['history'] if item['correct'])
         wrong_count = len(res['history']) - correct_count
         
@@ -195,7 +225,7 @@ def results():
             "level": res['final_level'],
             "correct": correct_count,
             "wrong": wrong_count,
-            "avg_similarity": 0 # 이 값은 현재 계산 로직이 없으므로 0으로 설정
+            "avg_similarity": 0 
         })
 
     return render_template('results.html', sequence_results=processed_results, pattern_results=[])

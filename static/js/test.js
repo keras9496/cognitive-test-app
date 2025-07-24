@@ -12,8 +12,6 @@ let problemData = null;
 let userSequence = [];
 let gameState = 'loading'; // loading, memorizing, answering, processing
 
-// --- 함수 정의 ---
-
 /** 박스를 캔버스에 그리는 함수 */
 function drawBoxes() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -41,9 +39,9 @@ function drawBoxes() {
 /** 문제의 정답 순서대로 박스를 깜빡이는 애니메이션 함수 */
 function showFlashingSequence() {
     gameState = 'memorizing';
-    messageLabel.textContent = `총 ${problemData.flash_count}개의 박스가 깜빡입니다. 순서를 기억하세요...`;
+    messageLabel.textContent = `순서를 기억하세요...`;
 
-    let delay = 2000;
+    let delay = 1000; 
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
 
@@ -72,7 +70,7 @@ function showFlashingSequence() {
     }, delay);
 }
 
-/** [수정됨] 사용자의 답안을 서버로 전송하는 함수 */
+/** 사용자의 답안을 서버로 전송하는 함수 */
 async function submitAnswer() {
     gameState = 'processing';
     messageLabel.textContent = "결과를 확인 중입니다...";
@@ -87,15 +85,14 @@ async function submitAnswer() {
 
         if (result.status === 'game_over') {
             messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
-            // 서버에서 받은 암호를 사용하여 결과 페이지로 이동
             setTimeout(() => {
                 window.location.href = `/results?pw=${result.admin_pw}`;
             }, 2000);
         } else if (result.correct) {
-            messageLabel.textContent = `정답입니다! Level ${result.current_level - 1} → ${result.current_level}`;
+            messageLabel.textContent = `정답입니다!`;
             setTimeout(initializeTest, 1500);
         } else { // incorrect
-            messageLabel.textContent = `틀렸습니다. 남은 기회: ${result.chances_left}회. 동일 레벨을 다시 진행합니다.`;
+            messageLabel.textContent = `틀렸습니다. 남은 기회: ${result.chances_left}회.`;
             setTimeout(initializeTest, 1500);
         }
     } catch (error) {
@@ -104,7 +101,7 @@ async function submitAnswer() {
     }
 }
 
-/** [수정됨] 캔버스 클릭 이벤트 처리 함수 */
+/** 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
     if (gameState !== 'answering') return;
 
@@ -121,7 +118,6 @@ function handleCanvasClick(event) {
         const boxIndex = userSequence.indexOf(boxId);
         
         if (boxIndex > -1) {
-            // 이미 선택된 박스를 다시 클릭하면 선택 취소
             userSequence.splice(boxIndex, 1);
         } else {
             userSequence.push(boxId);
@@ -129,15 +125,13 @@ function handleCanvasClick(event) {
         
         drawBoxes();
 
-        // 모든 박스를 선택해야만 답안 제출
         if (userSequence.length === problemData.flash_count) {
             submitAnswer();
         }
     }
 }
 
-
-/** 페이지가 로드되거나 다음 문제로 넘어갈 때, 서버에서 문제를 가져와 테스트 시작 */
+/** [수정됨] 페이지 로드 시, 서버에서 문제를 가져와 테스트 시작 */
 async function initializeTest() {
     userSequence = [];
     gameState = 'loading';
@@ -154,9 +148,16 @@ async function initializeTest() {
             return;
         }
 
-        messageLabel.textContent = `${problemData.level_name} - 잠시 후 시작됩니다.`;
+        // [수정됨] 레벨 정보 제거 및 잠시 후 안내창과 함께 시작
+        messageLabel.textContent = `잠시 후 시작됩니다.`;
         drawBoxes();
-        setTimeout(showFlashingSequence, 2000);
+        
+        setTimeout(() => {
+            if (confirm(`이번에는 ${problemData.flash_count}개의 박스가 깜빡입니다. 준비되셨나요?`)) {
+                showFlashingSequence();
+            }
+        }, 1000);
+
 
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;
