@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
 import random
 from datetime import timedelta
 import os
@@ -11,7 +11,10 @@ app.permanent_session_lifetime = timedelta(minutes=30)
 
 # 관리자 암호 (실제 환경에서는 환경 변수 등을 사용하세요)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "your_admin_password")
-ALL_RESULTS_FILE = 'all_results.json'
+
+# [수정됨] 데이터 저장 경로를 Render의 영구 디스크 경로인 instance 폴더로 변경
+INSTANCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+ALL_RESULTS_FILE = os.path.join(INSTANCE_FOLDER, 'all_results.json')
 
 def load_all_results():
     """모든 사용자 결과를 파일에서 불러옵니다."""
@@ -22,6 +25,8 @@ def load_all_results():
 
 def save_all_results(data):
     """모든 사용자 결과를 파일에 저장합니다."""
+    # [수정됨] 저장 전 instance 폴더가 있는지 확인하고 없으면 생성
+    os.makedirs(INSTANCE_FOLDER, exist_ok=True)
     with open(ALL_RESULTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
@@ -50,9 +55,9 @@ def start_test():
     }
     return redirect(url_for('practice'))
 
+# ... (이전과 동일한 다른 라우트들) ...
 @app.route('/practice')
 def practice():
-    """연습 문제 페이지를 렌더링합니다."""
     if 'user_info' not in session:
         return redirect(url_for('index'))
     init_session(level=0)
@@ -60,7 +65,6 @@ def practice():
 
 @app.route('/test')
 def test():
-    """세션에 사용자 정보가 있는지 확인하고 테스트 페이지를 렌더링합니다."""
     if 'user_info' not in session:
         return redirect(url_for('index'))
     init_session(level=1)
@@ -68,7 +72,6 @@ def test():
 
 @app.route('/intermission')
 def intermission():
-    """다음 문제 정보를 보여주는 안내 페이지를 렌더링합니다."""
     level = session.get('current_level', 0)
     problem = create_sequence_problem(level)
     session['current_problem'] = problem
@@ -77,7 +80,6 @@ def intermission():
 
 @app.route('/problem')
 def problem():
-    """실제 문제를 푸는 페이지를 렌더링합니다."""
     if 'current_problem' not in session:
         return redirect(url_for('index'))
     problem_type = 'practice' if session.get('current_level', 0) == 0 else 'test'
@@ -131,30 +133,21 @@ def submit_answer():
     problem = session.get('current_problem')
     if not problem:
         return jsonify({"error": "No problem in session"}), 400
-
     correct_answer = problem['flash_sequence']
     is_correct = (user_answer == correct_answer)
-    
     similarity = 0
     if not is_correct:
         correct_items_at_position = sum(1 for i in range(len(correct_answer)) if i < len(user_answer) and user_answer[i] == correct_answer[i])
         if len(correct_answer) > 0:
             similarity = correct_items_at_position / len(correct_answer)
-
     if level > 0:
-        session['history'].append({
-            "level": level, "correct": is_correct,
-            "user_answer": user_answer, "correct_answer": correct_answer,
-            "similarity": similarity
-        })
-
+        session['history'].append({"level": level, "correct": is_correct, "user_answer": user_answer, "correct_answer": correct_answer, "similarity": similarity})
     if level == 0:
         if is_correct:
             session['current_level'] = 1
             return jsonify({"status": "correct_practice"})
         else:
             return jsonify({"status": "incorrect_practice"})
-    
     if is_correct:
         session['current_level'] += 1
         session['chances_left'] = 2
@@ -174,26 +167,35 @@ def submit_answer():
 
 @app.route('/results')
 def results():
-    """[수정됨] 상세 기록을 볼 수 있도록 전체 history를 전달합니다."""
+    password = request.args.get('pw')
+    if password != ADMIN_PASSWORD:
+        return "접근 권한이 없습니다.", 403
+    all_results = load_all_results()
+    for i, res in enumerate(all_results):
+        res['id'] = i + 1
+    return render_template('results.html', all_results=all_results, pattern_results=[])
+
+@app.route('/finish')
+def finish():
+    return render_template('finish.html')
+
+# [신규] DB 파일 다운로드 라우트
+@app.route('/download-results')
+def download_results():
+    """관리자 암호 확인 후 all_results.json 파일을 다운로드합니다."""
     password = request.args.get('pw')
     if password != ADMIN_PASSWORD:
         return "접근 권한이 없습니다.", 403
     
-    all_results = load_all_results()
-    
-    # 이제 템플릿에서 직접 history를 순회하며 상세 정보를 표시하므로
-    # 서버에서 미리 가공할 필요가 줄어듭니다.
-    # ID만 추가해줍니다.
-    for i, res in enumerate(all_results):
-        res['id'] = i + 1
+    try:
+        return send_file(
+            ALL_RESULTS_FILE,
+            as_attachment=True,
+            download_name='results_backup.json' # 다운로드 시 파일 이름
+        )
+    except FileNotFoundError:
+        return "결과 파일이 아직 생성되지 않았습니다.", 404
 
-    return render_template('results.html', all_results=all_results, pattern_results=[])
-
-
-@app.route('/finish')
-def finish():
-    """테스트 완료 페이지를 렌더링합니다."""
-    return render_template('finish.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
