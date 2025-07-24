@@ -278,36 +278,36 @@ def submit_answer():
 
         correct_answer = current_problem['flash_sequence']
         is_correct = (user_answer == correct_answer)
-
-        # 유사도 계산
-        matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
-        similarity = matches / len(correct_answer) if correct_answer else 0
-
-        # 결과 저장
+        
         level = session.get('current_level', 1)
-        if level not in session['level_results']:
+        if level not in session.get('level_results', {}):
             session['level_results'][level] = {'correct': 0, 'wrong': 0, 'similarities': []}
 
+        matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
+        similarity = matches / len(correct_answer) if correct_answer else 0
         session['level_results'][level]['similarities'].append(similarity)
 
         if is_correct:
+            # 정답일 경우: 레벨을 올리고 기회를 2번으로 초기화
             session['level_results'][level]['correct'] += 1
-            # 정답 -> 다음 레벨로, 기회 초기화
             session['current_level'] += 1
             session['chances_left'] = 2
+            
         else:
+            # 오답일 경우: 기회를 1번 줄임
             session['level_results'][level]['wrong'] += 1
-            # 오답 -> 기회 1 차감
             session['chances_left'] -= 1
+            
+            # 남은 기회가 없으면 테스트 종료 플래그 설정
             if session['chances_left'] <= 0:
-                # 기회를 모두 소진하면 테스트 종료
                 session['sequence_test_completed'] = True
 
         session.modified = True
-        return jsonify({"status": "next_problem"})
+        return jsonify({"status": "next_problem", "correct": is_correct})
 
     except Exception as e:
         print(f"답안 처리 중 오류: {str(e)}")
+        db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/submit-pattern-result', methods=['POST'])
