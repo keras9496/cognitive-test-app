@@ -108,19 +108,71 @@ function handleCanvasClick(event) {
             const boxIndex = userSequence.indexOf(boxId);
             
             if (boxIndex > -1) {
-                userSequence.splice(boxIndex, 1);
+                userSequence.splice(boxIndex, 1); // 클릭 취소 로직 유지
             } else {
                 userSequence.push(boxId);
             }
             
             drawBoxes();
 
+            // 사용자가 정답 길이만큼 박스를 모두 클릭했을 때
+            // 자동 제출 대신 '답안 제출' 버튼을 보여줌
             if (userSequence.length === problemData.flash_count) {
-                submitAnswer();
+                submitBtn.style.display = 'block';
+            } else {
+                submitBtn.style.display = 'none';
             }
         }
     });
 }
+
+/** 페이지가 로드되거나 다음 문제로 넘어갈 때, 서버에서 문제를 가져와 테스트 시작 */
+async function initializeTest() {
+    userSequence = [];
+    gameState = 'loading';
+    messageLabel.textContent = '문제를 가져오는 중입니다...';
+    submitBtn.style.display = 'none'; // 새 문제 시작 시 버튼 숨기기
+
+    try {
+        const response = await fetch('/api/get-problem');
+        if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
+
+        problemData = await response.json();
+
+        if (problemData.status === 'completed') {
+            messageLabel.textContent = problemData.message;
+            setTimeout(() => {
+                window.location.href = problemData.next_url;
+            }, 2000);
+            return;
+        }
+
+        if (problemData.error) {
+            messageLabel.textContent = `오류: ${problemData.error}`;
+            return;
+        }
+
+        messageLabel.textContent = `${problemData.level_name} - 잠시 후 시작됩니다.`;
+        drawBoxes();
+        setTimeout(showFlashingSequence, 2000);
+
+    } catch (error) {
+        messageLabel.textContent = `오류: ${error.message}`;
+        console.error(error);
+    }
+}
+
+
+// --- 이벤트 리스너 설정 ---
+canvas.addEventListener('click', handleCanvasClick);
+document.addEventListener('DOMContentLoaded', initializeTest);
+
+// 제출 버튼 클릭 이벤트 리스너 추가
+submitBtn.addEventListener('click', () => {
+    if (gameState === 'answering') {
+        submitAnswer();
+    }
+});
 
 
 /** 페이지가 로드되거나 다음 문제로 넘어갈 때, 서버에서 문제를 가져와 테스트 시작 */

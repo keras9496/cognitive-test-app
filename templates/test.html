@@ -15,3 +15,25 @@
     <script src="{{ url_for('static', filename='js/test.js') }}"></script>
 </body>
 </html>
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시각 순서 기억 검사</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="test-container">
+        <h2 id="message-label">불러오는 중...</h2>
+        <canvas id="test-canvas" width="500" height="500"></canvas>
+        
+        <button id="submit-btn" class="start-btn" style="display: none; margin-top: 20px; max-width: 200px;">
+            답안 제출
+        </button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/test.js') }}"></script>
+</body>
+</html>
