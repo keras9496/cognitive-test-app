@@ -41,26 +41,22 @@ function showFlashingSequence() {
     gameState = 'memorizing';
     messageLabel.textContent = `순서를 기억하세요...`;
 
-    let delay = 1000; 
+    let delay = 1000;
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
-
         setTimeout(() => {
             if (box) {
                 ctx.fillStyle = BOX_COLOR_FLASH;
                 ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
             }
         }, delay);
-
         delay += 500;
-
         setTimeout(() => {
             if (box) {
                 ctx.fillStyle = BOX_COLOR_DEFAULT;
                 ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
             }
         }, delay);
-
         delay += 250;
     });
 
@@ -85,15 +81,10 @@ async function submitAnswer() {
 
         if (result.status === 'game_over') {
             messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
-            setTimeout(() => {
-                window.location.href = `/results?pw=${result.admin_pw}`;
-            }, 2000);
-        } else if (result.correct) {
-            messageLabel.textContent = `정답입니다!`;
-            setTimeout(initializeTest, 1500);
-        } else { // incorrect
-            messageLabel.textContent = `틀렸습니다. 남은 기회: ${result.chances_left}회.`;
-            setTimeout(initializeTest, 1500);
+            setTimeout(() => window.location.href = '/finish', 2000);
+        } else if (result.status === 'next_level' || result.status === 'retry') {
+            messageLabel.textContent = result.correct ? "정답입니다!" : `틀렸습니다. 남은 기회: ${result.chances_left}회.`;
+            setTimeout(() => window.location.href = '/intermission', 2000);
         }
     } catch (error) {
         messageLabel.textContent = '서버 통신에 실패했습니다.';
@@ -116,48 +107,36 @@ function handleCanvasClick(event) {
     if (clickedBox) {
         const boxId = clickedBox.id;
         const boxIndex = userSequence.indexOf(boxId);
-        
         if (boxIndex > -1) {
             userSequence.splice(boxIndex, 1);
         } else {
             userSequence.push(boxId);
         }
-        
         drawBoxes();
-
         if (userSequence.length === problemData.flash_count) {
             submitAnswer();
         }
     }
 }
 
-/** [수정됨] 페이지 로드 시, 서버에서 문제를 가져와 테스트 시작 */
+/** 페이지 로드 시, 서버에서 현재 문제를 가져와 테스트 시작 */
 async function initializeTest() {
-    userSequence = [];
     gameState = 'loading';
     messageLabel.textContent = '문제를 가져오는 중입니다...';
 
     try {
-        const response = await fetch('/api/get-problem');
+        const response = await fetch('/api/get-current-problem');
         if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
 
         problemData = await response.json();
-
         if (problemData.error) {
             messageLabel.textContent = `오류: ${problemData.error}`;
             return;
         }
 
-        // [수정됨] 레벨 정보 제거 및 잠시 후 안내창과 함께 시작
-        messageLabel.textContent = `잠시 후 시작됩니다.`;
+        userSequence = [];
         drawBoxes();
-        
-        setTimeout(() => {
-            if (confirm(`이번에는 ${problemData.flash_count}개의 박스가 깜빡입니다. 준비되셨나요?`)) {
-                showFlashingSequence();
-            }
-        }, 1000);
-
+        showFlashingSequence();
 
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;

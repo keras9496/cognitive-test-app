@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>준비</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="test-container" style="max-width: 500px;">
+        <h2 style="font-size: 1.8em; font-weight: bold; margin-bottom: 25px;">
+            다음 문제 안내
+        </h2>
+        <p style="font-size: 1.2em; line-height: 1.6; margin-bottom: 30px;">
+            이번에는 <strong style="color: #007bff; font-size: 1.3em;">{{ flash_count }}</strong>개의 박스가 깜빡입니다.<br>
+            준비가 되면 아래 버튼을 눌러주세요.
+        </p>
+        <button id="start-problem-btn" class="start-btn" style="max-width: 200px;">
+            확인
+        </button>
+    </div>
+
+    <script>
+        document.getElementById('start-problem-btn').addEventListener('click', () => {
+            // 'problem' 엔드포인트로 이동하여 실제 문제를 표시
+            window.location.href = '/problem';
+        });
+    </script>
+</body>
+</html>

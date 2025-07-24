@@ -7,12 +7,13 @@ const canvas = document.getElementById('practice-canvas');
 const ctx = canvas.getContext('2d');
 const messageLabel = document.getElementById('message-label');
 const instructionP = document.getElementById('instruction');
-const startMainTestBtn = document.getElementById('start-main-test-btn');
 
 // --- 게임 상태 변수 ---
-let problemData = null; 
-let userSequence = []; 
+let problemData = null;
+let userSequence = [];
 let gameState = 'loading'; // loading, memorizing, answering, processing
+
+// --- 함수 정의 ---
 
 /** 박스를 캔버스에 그리는 함수 */
 function drawBoxes() {
@@ -43,27 +44,23 @@ function showFlashingSequence() {
     gameState = 'memorizing';
     messageLabel.textContent = "순서를 기억하세요...";
     instructionP.style.display = 'none';
-    
+
     let delay = 1000;
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
-        
         setTimeout(() => {
             if (box) {
                 ctx.fillStyle = BOX_COLOR_FLASH;
                 ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
             }
         }, delay);
-
         delay += 500;
-
         setTimeout(() => {
             if (box) {
                 ctx.fillStyle = BOX_COLOR_DEFAULT;
                 ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
             }
         }, delay);
-        
         delay += 250;
     });
 
@@ -79,37 +76,25 @@ async function submitAnswer() {
     messageLabel.textContent = "채점 중입니다...";
 
     try {
-        const response = await fetch('/api/submit-practice-answer', {
+        const response = await fetch('/api/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ answer: userSequence })
         });
-        
         const result = await response.json();
 
-        if (result.status === 'correct') {
+        if (result.status === 'correct_practice') {
             messageLabel.textContent = result.message;
-            canvas.style.display = 'none';
-            startMainTestBtn.style.display = 'block';
-        } else if (result.status === 'incorrect') {
+            setTimeout(() => window.location.href = '/test', 2000);
+        } else if (result.status === 'incorrect_practice') {
             messageLabel.textContent = result.message;
-            setTimeout(retryPractice, 1500);
+            setTimeout(() => window.location.href = '/practice', 2000);
         } else {
             messageLabel.textContent = `오류: ${result.message || '알 수 없는 오류'}`;
         }
-    } catch(error) {
+    } catch (error) {
         messageLabel.textContent = '서버 통신에 실패했습니다.';
         console.error('Submit Practice Answer Error:', error);
-    }
-}
-
-/** 틀렸을 경우, 다시 시도하는 함수 */
-function retryPractice() {
-    userSequence = [];
-    drawBoxes();
-    // 다시 안내창을 띄우고 시작
-    if (confirm(`이번에는 ${problemData.flash_count}개의 박스가 깜빡입니다. 준비되셨나요?`)) {
-        showFlashingSequence();
     }
 }
 
@@ -128,40 +113,31 @@ function handleCanvasClick(event) {
     if (clickedBox) {
         const boxId = clickedBox.id;
         const boxIndex = userSequence.indexOf(boxId);
-        
         if (boxIndex > -1) {
             userSequence.splice(boxIndex, 1);
         } else {
             userSequence.push(boxId);
         }
-        
         drawBoxes();
-
         if (userSequence.length === problemData.flash_count) {
             submitAnswer();
         }
     }
 }
 
-/** 페이지가 로드될 때, 서버에서 연습 문제를 가져와 테스트 시작 */
-async function initializePracticeTest() {
+/** 페이지 로드 시, 서버에서 현재 문제를 가져와 테스트 시작 */
+async function initializeTest() {
     gameState = 'loading';
-    messageLabel.textContent = '연습 문제를 준비 중입니다...';
+    messageLabel.textContent = '연습 문제를 불러오는 중입니다...';
 
     try {
-        const response = await fetch('/api/get-practice-problem');
+        const response = await fetch('/api/get-current-problem');
         if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
-        
+
         problemData = await response.json();
         userSequence = [];
         drawBoxes();
-        
-        // 잠시 후 안내창과 함께 시작
-        setTimeout(() => {
-            if (confirm(`이번에는 ${problemData.flash_count}개의 박스가 깜빡입니다. 준비되셨나요?`)) {
-                showFlashingSequence();
-            }
-        }, 1000);
+        showFlashingSequence();
 
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;
@@ -169,10 +145,5 @@ async function initializePracticeTest() {
     }
 }
 
-// "본 테스트 시작하기" 버튼 클릭 이벤트
-startMainTestBtn.addEventListener('click', () => {
-    window.location.href = '/test';
-});
-
 canvas.addEventListener('click', handleCanvasClick);
-document.addEventListener('DOMContentLoaded', initializePracticeTest);
+document.addEventListener('DOMContentLoaded', initializeTest);
