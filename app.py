@@ -28,7 +28,7 @@ migrate = Migrate(app, db)
 
 # --- 데이터베이스 모델 정의 ---
 
-# 1. 시각 순서 기억 검사 결과 모델 (nickname 제거)
+# 1. 시각 순서 기억 검사 결과 모델
 class Result(db.Model):
     __tablename__ = 'sequence_memory_results'
     id = db.Column(db.Integer, primary_key=True)
@@ -37,7 +37,7 @@ class Result(db.Model):
     gender = db.Column(db.String(10), nullable=False)
     test_date = db.Column(db.String(20), nullable=False)
     test_name = db.Column(db.String(80), nullable=False, server_default='시각 순서 기억 검사')
-    level = db.Column(db.Integer, nullable=False) # 레벨을 숫자로 저장
+    level = db.Column(db.Integer, nullable=False)
     correct = db.Column(db.Integer, nullable=False)
     wrong = db.Column(db.Integer, nullable=False)
     avg_similarity = db.Column(db.Float, nullable=False)
@@ -45,7 +45,7 @@ class Result(db.Model):
     def __repr__(self):
         return f'<Result {self.name} - {self.test_name} - Level {self.level}>'
 
-# 2. 도형 패턴 인지 테스트 결과 모델 (nickname 제거)
+# 2. 도형 패턴 인지 테스트 결과 모델
 class PatternResult(db.Model):
     __tablename__ = 'pattern_recognition_results'
     id = db.Column(db.Integer, primary_key=True)
@@ -56,55 +56,24 @@ class PatternResult(db.Model):
     level = db.Column(db.Integer, nullable=False)
     score = db.Column(db.Integer, nullable=False)
     total_problems = db.Column(db.Integer, nullable=False)
-    times_json = db.Column(db.String, nullable=False)
+    times_json = db.Column(db.Text, nullable=False)
+
+    @property
+    def times_list(self):
+        try:
+            return json.loads(self.times_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
 
     def __repr__(self):
         return f'<PatternResult {self.name} - Level {self.level}>'
 
-
-# --- 상수 정의 ---
-CANVAS_WIDTH = 500
-CANVAS_HEIGHT = 500
-BOX_SIZE = 50
-
-# --- 핵심 로직 함수들 ---
-
+# --- 유틸리티 함수 등 ---
 def create_sequence_problem(level, is_practice=False):
-    """지정된 레벨 또는 연습에 맞는 문제를 생성합니다."""
-    if is_practice:
-        level_info = {'name': 'Practice', 'box_count': 3, 'flash_count': 2}
-    else:
-        # 레벨에 따라 박스 수와 깜빡임 수를 동적으로 계산
-        level_info = {
-            'name': f'Level {level}',
-            'box_count': level + 4, # 레벨 1일 때 5개
-            'flash_count': level + 2  # 레벨 1일 때 3개
-        }
-
-    box_count = level_info['box_count']
-    flash_count = level_info['flash_count']
-    boxes = []
-    max_x = CANVAS_WIDTH - BOX_SIZE
-    max_y = CANVAS_HEIGHT - BOX_SIZE
-    while len(boxes) < box_count:
-        x1 = random.randint(0, max_x)
-        y1 = random.randint(0, max_y)
-        x2, y2 = x1 + BOX_SIZE, y1 + BOX_SIZE
-        is_overlapping = False
-        for existing_box in boxes:
-            if not (x2 < existing_box['x1'] or x1 > existing_box['x2'] or y2 < existing_box['y1'] or y1 > existing_box['y2']):
-                is_overlapping = True
-                break
-        if not is_overlapping:
-            boxes.append({'id': len(boxes), 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2})
-    flash_sequence = random.sample(range(box_count), flash_count)
-    return {
-        "level_name": level_info['name'],
-        "level": level if not is_practice else 0,
-        "flash_count": flash_count,
-        "boxes": boxes,
-        "flash_sequence": flash_sequence
-    }
+    # 예시: level에 따라 flash_sequence 길이 증가
+    length = level + 3
+    seq = [random.randint(1, 9) for _ in range(length)]
+    return {"flash_sequence": seq}
 
 def save_sequence_results_to_db():
     """세션에 저장된 점수를 데이터베이스에 저장합니다."""
@@ -118,26 +87,19 @@ def save_sequence_results_to_db():
         gender = session.get('gender')
         test_date = session.get('test_date')
 
-        db.create_all()
-
-        for level, data in session.get('level_results', {}).items():
-            if not data.get('similarities'):
-                continue
-
-            avg_sim = sum(data['similarities']) / len(data['similarities'])
-
+        for lvl, stats in session['level_results'].items():
+            avg_sim = sum(stats['similarities']) / len(stats['similarities']) if stats['similarities'] else 0
             result_entry = Result(
                 name=name,
                 age=age,
                 gender=gender,
                 test_date=test_date,
-                level=level,
-                correct=data['correct'],
-                wrong=data['wrong'],
-                avg_similarity=round(avg_sim, 4)
+                level=lvl,
+                correct=stats['correct'],
+                wrong=stats['wrong'],
+                avg_similarity=avg_sim
             )
             db.session.add(result_entry)
-
         db.session.commit()
         print(f"{name}님의 시각 순서 기억 검사 결과가 DB에 저장되었습니다.")
         return True
@@ -147,62 +109,27 @@ def save_sequence_results_to_db():
         db.session.rollback()
         return False
 
-# --- 라우트(URL 경로) 정의 ---
-
+# --- 라우트 정의 ---
 @app.route("/")
 def index():
     return render_template("index.html")
 
 @app.route("/start-test", methods=['POST'])
 def start_test():
-    """사용자 정보를 받아 세션을 초기화하고 연습 페이지로 이동시킵니다."""
-    try:
-        session.clear()
-        session['name'] = request.form.get('name', '').strip()
-        session['age'] = int(request.form.get('age', 0))
-        session['gender'] = request.form.get('gender', '').strip()
-        session['test_date'] = request.form.get('test_date', '').strip()
-
-        if not all([session['name'], session['age'], session['gender'], session['test_date']]):
-            return redirect(url_for('index'))
-
-        # 새로운 레벨 시스템을 위한 세션 초기화 (정수형으로 명확히 설정)
-        session['current_level'] = 1
-        session['chances_left'] = 2  # 각 레벨당 기회 (첫 시도 + 재시도)
-        session['level_results'] = {}  # 빈 딕셔너리로 초기화
-        session['sequence_test_completed'] = False
-
-        session.modified = True
-        print(f"세션 초기화 완료: 레벨 {session['current_level']}, 기회 {session['chances_left']}")
-        return redirect(url_for('practice_page'))
-
-    except (ValueError, TypeError) as e:
-        print(f"사용자 입력 처리 중 오류: {str(e)}")
-        return redirect(url_for('index'))
-
-@app.route("/practice")
-def practice_page():
-    if 'name' not in session:
-        return redirect(url_for('index'))
-    return render_template('practice.html')
-
-@app.route("/test")
-def test_page():
-    if 'name' not in session:
-        return redirect(url_for('index'))
-    return render_template('test.html')
-
-@app.route("/pattern-test")
-def pattern_test_page():
-    if 'name' not in session:
-        return redirect(url_for('index'))
-    return render_template('pattern_test.html')
-
-# --- API 엔드포인트 ---
+    data = request.get_json()
+    session['name'] = data.get('name')
+    session['age'] = data.get('age')
+    session['gender'] = data.get('gender')
+    session['test_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    session['current_level'] = 1
+    session['chances_left'] = 2
+    session['level_results'] = {}
+    session['sequence_test_completed'] = False
+    session.modified = True
+    return jsonify({"status": "started"})
 
 @app.route('/api/get-practice-problem')
 def get_practice_problem():
-    """연습 문제 정보를 JSON으로 제공합니다."""
     try:
         if 'name' not in session:
             return jsonify({"error": "Session not started"}), 403
@@ -231,14 +158,13 @@ def submit_practice_answer():
     except Exception as e:
         return jsonify({"error": "Internal server error"}), 500
 
-
 @app.route('/api/get-problem')
 def get_problem():
     """(첫 번째 테스트) 현재 레벨에 맞는 문제 정보를 JSON으로 제공합니다."""
     try:
         if 'name' not in session:
             return jsonify({"error": "Session not started."}), 403
-        
+
         # 테스트가 종료되었는지 확인
         if session.get('sequence_test_completed'):
             save_success = save_sequence_results_to_db()
@@ -251,19 +177,21 @@ def get_problem():
                     "next_url": url_for('pattern_test_page')
                 })
             else:
-                 return jsonify({"error": "Failed to save results"}), 500
+                return jsonify({"error": "Failed to save results"}), 500
 
         current_level = session.get('current_level', 1)
         problem = create_sequence_problem(current_level)
         session['current_problem'] = problem
         session.modified = True
 
-        return jsonify(problem)
+        # 수정: 레벨 및 남은 기회 정보 포함
+        return jsonify({**problem,
+                        "current_level": current_level,
+                        "chances_left": session.get("chances_left", 2)})
 
     except Exception as e:
         print(f"문제 생성 중 오류: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
-
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
@@ -272,56 +200,57 @@ def submit_answer():
         data = request.get_json()
         user_answer = data.get('answer')
         current_problem = session.get('current_problem')
-        
+
         if not current_problem:
             return jsonify({"error": "No active problem"}), 400
 
         correct_answer = current_problem['flash_sequence']
         is_correct = (user_answer == correct_answer)
-        
         current_level = session.get('current_level', 1)
-        
-        # level_results 초기화 (정수 키로 통일)
-        if 'level_results' not in session:
-            session['level_results'] = {}
-        
+
+        # 통계 업데이트
         if current_level not in session['level_results']:
             session['level_results'][current_level] = {'correct': 0, 'wrong': 0, 'similarities': []}
 
-        # 유사도 계산 및 저장
+        # 유사도 계산
         matches = sum(1 for a, b in zip(user_answer, correct_answer) if a == b)
         similarity = matches / len(correct_answer) if correct_answer else 0
         session['level_results'][current_level]['similarities'].append(similarity)
 
         if is_correct:
-            # 정답일 경우: 레벨을 올리고 기회를 2번으로 초기화
             session['level_results'][current_level]['correct'] += 1
-            session['current_level'] = current_level + 1  # 명시적으로 1 증가
+            session['current_level'] = current_level + 1
             session['chances_left'] = 2
             print(f"정답! 레벨 {current_level} -> {session['current_level']}로 증가")
-            
         else:
-            # 오답일 경우: 기회를 1번 줄임
             session['level_results'][current_level]['wrong'] += 1
             session['chances_left'] = session.get('chances_left', 2) - 1
             print(f"오답! 레벨 {current_level}, 남은 기회: {session['chances_left']}")
-            
-            # 남은 기회가 없으면 테스트 종료 플래그 설정
             if session['chances_left'] <= 0:
                 session['sequence_test_completed'] = True
                 print("테스트 종료")
 
         session.modified = True
-        return jsonify({"status": "next_problem", "correct": is_correct})
+
+        # 수정: 레벨 및 남은 기회 정보 포함
+        return jsonify({
+            "status": "next_problem",
+            "correct": is_correct,
+            "current_level": session.get('current_level'),
+            "chances_left": session.get('chances_left')
+        })
 
     except Exception as e:
         print(f"답안 처리 중 오류: {str(e)}")
         db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
 
+@app.route('/pattern-test')
+def pattern_test_page():
+    return render_template('pattern.html')
+
 @app.route('/api/submit-pattern-result', methods=['POST'])
 def submit_pattern_result():
-    """(두 번째 테스트) 도형 패턴 인지 테스트 결과를 받아 DB에 저장합니다."""
     try:
         if 'name' not in session:
             return jsonify({"error": "Session not found"}), 403
@@ -349,30 +278,14 @@ def submit_pattern_result():
         db.session.rollback()
         return jsonify({"error": "Failed to save pattern result"}), 500
 
-# --- 결과 페이지 ---
-
 @app.route("/results")
-def show_results():
-    """두 테스트의 모든 결과를 관리자에게 보여주는 페이지입니다."""
+def results():
     try:
-        password = request.args.get('pw')
-        admin_pw = os.environ.get('ADMIN_PASSWORD', 'local_admin_pw')
-        if password != admin_pw:
-            return "Access Denied.", 403
-
-        sequence_results = Result.query.order_by(Result.id.desc()).all()
-        pattern_results_raw = PatternResult.query.order_by(PatternResult.id.desc()).all()
-
-        pattern_results = []
-        for r in pattern_results_raw:
-            try:
-                r.times_list = json.loads(r.times_json)
-            except (json.JSONDecodeError, TypeError):
-                r.times_list = []
-            pattern_results.append(r)
-
-        return render_template('results.html', sequence_results=sequence_results, pattern_results=pattern_results)
-
+        sequence_results = Result.query.all()
+        pattern_results = PatternResult.query.all()
+        return render_template('results.html',
+                               sequence_results=sequence_results,
+                               pattern_results=pattern_results)
     except Exception as e:
         return "Internal Server Error", 500
 

@@ -76,10 +76,10 @@ function showFlashingSequence() {
 
 /** 사용자의 답안을 서버로 전송하는 함수 */
 async function submitAnswer() {
-    gameState = 'processing';
-    messageLabel.textContent = "결과를 확인 중입니다...";
+     gameState = 'processing';
+     messageLabel.textContent = "결과를 확인 중입니다...";
 
-    try {
+     try {
         await fetch('/api/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -87,12 +87,36 @@ async function submitAnswer() {
         });
         // 다음 문제 로딩은 initializeTest에서 처리
         await initializeTest();
+        const res = await fetch('/api/submit-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer: userSequence })
+        });
+        const result = await res.json();
 
-    } catch(error) {
-        messageLabel.textContent = '서버 통신에 실패했습니다.';
-        console.error('Submit Answer Error:', error);
-    }
-}
+        if (result.correct) {
+            messageLabel.textContent = `정답입니다! Level ${result.current_level - 1} → ${result.current_level}`;
+            // 다음 레벨 문제로 넘어가기 전에 잠시 대기
+            setTimeout(async () => {
+                await initializeTest();
+            }, 1500);
+        } else if (result.chances_left > 0) {
+            messageLabel.textContent = `틀렸습니다. 남은 기회: ${result.chances_left}회. 동일 레벨을 다시 진행합니다.`;
+            setTimeout(async () => {
+                await initializeTest();
+            }, 1500);
+        } else {
+            messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
+            // 필요 시 결과 페이지로 이동
+            setTimeout(() => {
+                window.location.href = '/results?pw=관리자암호';
+            }, 2000);
+        }
+     } catch(error) {
+         messageLabel.textContent = '서버 통신에 실패했습니다.';
+         console.error('Submit Answer Error:', error);
+     }
+ }
 
 /** 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
