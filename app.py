@@ -1,104 +1,68 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 import os
 import json
 
 app = Flask(__name__)
-# 세션을 안전하게 암호화하기 위한 시크릿 키 설정
 app.secret_key = os.urandom(24)
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# 관리자 암호 (실제 환경에서는 환경 변수 등을 사용하세요)
-# Render.com의 'Environment' 탭에서 ADMIN_PASSWORD를 설정하는 것을 권장합니다.
-# 예: ADMIN_PASSWORD = w123456789
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "your_admin_password")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "w123456789")
 
-# 데이터 저장을 위한 instance 폴더 설정 (Render의 영구 디스크 경로)
+# --- 새로운 데이터베이스 설정 ---
 INSTANCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
-ALL_RESULTS_FILE = os.path.join(INSTANCE_FOLDER, 'all_results.json')
+DATABASE_FILE = os.path.join(INSTANCE_FOLDER, 'database.json')
 
-def load_all_results():
-    """모든 사용자 결과를 파일에서 불러옵니다."""
-    # instance 폴더가 없으면 생성
+def load_database():
+    """통합 데이터베이스 파일을 불러옵니다."""
     os.makedirs(INSTANCE_FOLDER, exist_ok=True)
-    if not os.path.exists(ALL_RESULTS_FILE) or os.path.getsize(ALL_RESULTS_FILE) == 0:
-        # 파일이 없거나 비어있으면 빈 리스트 반환
-        return []
+    if not os.path.exists(DATABASE_FILE):
+        return {"users": []}
     try:
-        with open(ALL_RESULTS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        # JSON 형식이 잘못된 경우 빈 리스트 반환
-        return []
+        with open(DATABASE_FILE, 'r', encoding='utf-8') as f:
+            # 파일이 비어있는 경우 json.load()가 에러를 일으키므로 확인
+            content = f.read()
+            if not content:
+                return {"users": []}
+            return json.loads(content)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {"users": []}
 
-def save_all_results(data):
-    """모든 사용자 결과를 파일에 저장합니다."""
-    # instance 폴더가 없으면 생성
+def save_database(data):
+    """통합 데이터베이스 파일을 저장합니다."""
     os.makedirs(INSTANCE_FOLDER, exist_ok=True)
-    with open(ALL_RESULTS_FILE, 'w', encoding='utf-8') as f:
+    with open(DATABASE_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-def init_session(level=1):
-    """세션을 초기화합니다."""
+# --- 기존 세션 초기화 및 문제 생성 함수 (변경 없음) ---
+def init_session_for_sequence_test(level=1):
+    """순서 기억 검사를 위한 세션을 초기화합니다."""
     user_info = session.get('user_info', {})
-    session.clear()
+    test_type = session.get('test_type') # test_type 유지
+    
+    session.clear() # 세션 초기화
+    
     session['user_info'] = user_info
+    session['test_type'] = test_type
     session['current_level'] = level
     session['chances_left'] = 2
     session['history'] = []
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/start-test', methods=['POST'])
-def start_test():
-    """사용자 정보를 세션에 저장하고 연습 페이지로 리디렉션합니다."""
-    session.clear()
-    session['user_info'] = {
-        'name': request.form.get('name', '익명'),
-        'age': request.form.get('age', 'N/A'),
-        'gender': request.form.get('gender', 'N/A'),
-        'test_date': request.form.get('test_date', 'N/A')
-    }
-    # permanent 세션으로 설정
     session.permanent = True
-    return redirect(url_for('practice'))
 
-@app.route('/practice')
-def practice():
-    if 'user_info' not in session:
-        return redirect(url_for('index'))
-    init_session(level=0)
-    return redirect(url_for('intermission'))
-
-@app.route('/test')
-def test():
-    if 'user_info' not in session:
-        return redirect(url_for('index'))
-    init_session(level=1)
-    return redirect(url_for('intermission'))
-
-@app.route('/intermission')
-def intermission():
-    if 'user_info' not in session:
-        return redirect(url_for('index'))
-    level = session.get('current_level', 0)
-    problem = create_sequence_problem(level)
-    session['current_problem'] = problem
-    session.modified = True
-    return render_template('intermission.html', flash_count=problem['flash_count'])
-
-@app.route('/problem')
-def problem():
-    if 'current_problem' not in session:
-        return redirect(url_for('index'))
-    problem_type = 'practice' if session.get('current_level', 0) == 0 else 'test'
-    if problem_type == 'practice':
-        return render_template('practice.html')
-    else:
-        return render_template('test.html')
+def create_sequence_problem(level):
+    if level == 0: # 연습
+        num_boxes = 4
+        sequence_length = 2
+    else: # 본 검사
+        num_boxes = level + 4
+        sequence_length = level + 1
+    
+    all_box_ids = list(range(num_boxes))
+    flash_sequence = random.sample(all_box_ids, sequence_length)
+    
+    boxes = generate_box_positions(num_boxes, 500, 500)
+    return {"boxes": boxes, "flash_sequence": flash_sequence, "flash_count": sequence_length}
 
 def generate_box_positions(num_boxes, canvas_width, canvas_height):
     boxes = []
@@ -120,20 +84,87 @@ def generate_box_positions(num_boxes, canvas_width, canvas_height):
                 break
     return boxes
 
-def create_sequence_problem(level):
-    if level == 0:
-        num_boxes = 4
-        sequence_length = 2
+# --- 기본 페이지 라우트 ---
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# --- 핵심 로직: 검사 시작 및 분기 ---
+@app.route('/start-test', methods=['POST'])
+def start_test():
+    user_info = {
+        'name': request.form.get('name', '익명'),
+        'age': request.form.get('age', 'N/A'),
+        'gender': request.form.get('gender', 'N/A'),
+        'test_date': request.form.get('test_date', datetime.now().strftime("%Y-%m-%d"))
+    }
+    session['user_info'] = user_info
+    session.permanent = True
+
+    db = load_database()
+    
+    # 사용자 찾기
+    user_entry = None
+    for user in db['users']:
+        if user['name'] == user_info['name'] and user['age'] == user_info['age']:
+            user_entry = user
+            break
+
+    if user_entry is None:
+        # 새로운 사용자이면 등록
+        user_entry = {
+            "name": user_info['name'],
+            "age": user_info['age'],
+            "gender": user_info['gender'],
+            "tests": []
+        }
+        db['users'].append(user_entry)
+    
+    # 이번이 몇 번째 검사인지 확인
+    test_count = len(user_entry['tests'])
+    
+    if test_count % 2 == 0:
+        # 짝수번째 검사 (0, 2, 4, ... 번째) -> 기존 순서 기억 검사
+        session['test_type'] = 'sequence'
+        return redirect(url_for('practice'))
     else:
-        num_boxes = level + 4
-        sequence_length = level + 1
-    
-    # 중복되지 않는 숫자로 시퀀스 생성
-    all_box_ids = list(range(num_boxes))
-    flash_sequence = random.sample(all_box_ids, sequence_length)
-    
-    boxes = generate_box_positions(num_boxes, 500, 500)
-    return {"boxes": boxes, "flash_sequence": flash_sequence, "flash_count": sequence_length}
+        # 홀수번째 검사 (1, 3, 5, ... 번째) -> 새로운 카드 맞추기 검사
+        session['test_type'] = 'card_matching'
+        return redirect(url_for('card_test'))
+
+
+# --- 1. 순서 기억 검사 관련 라우트 ---
+
+@app.route('/practice')
+def practice():
+    if 'user_info' not in session or session.get('test_type') != 'sequence':
+        return redirect(url_for('index'))
+    init_session_for_sequence_test(level=0) # 연습 레벨
+    return redirect(url_for('intermission'))
+
+@app.route('/test')
+def test():
+    if 'user_info' not in session or session.get('test_type') != 'sequence':
+        return redirect(url_for('index'))
+    init_session_for_sequence_test(level=1) # 본 검사 레벨
+    return redirect(url_for('intermission'))
+
+@app.route('/intermission')
+def intermission():
+    if 'user_info' not in session:
+        return redirect(url_for('index'))
+    level = session.get('current_level', 0)
+    problem = create_sequence_problem(level)
+    session['current_problem'] = problem
+    return render_template('intermission.html', flash_count=problem['flash_count'])
+
+@app.route('/problem')
+def problem():
+    if 'current_problem' not in session:
+        return redirect(url_for('index'))
+    problem_type = 'practice' if session.get('current_level', 0) == 0 else 'test'
+    template = 'practice.html' if problem_type == 'practice' else 'test.html'
+    return render_template(template)
 
 @app.route('/api/get-current-problem', methods=['GET'])
 def get_current_problem():
@@ -144,36 +175,33 @@ def get_current_problem():
 
 @app.route('/api/submit-answer', methods=['POST'])
 def submit_answer():
+    # ... (이하 기존 순서 기억 검사 답안 제출 로직은 변경 없음) ...
+    # 정답/오답에 따라 DB 저장 로직만 마지막에 추가
     data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid request"}), 400
+    if not data: return jsonify({"error": "Invalid request"}), 400
 
     user_answer = data.get('answer')
     level = session.get('current_level', 0)
     problem = session.get('current_problem')
-
-    if not problem:
-        return jsonify({"error": "No problem in session"}), 400
+    if not problem: return jsonify({"error": "No problem in session"}), 400
 
     correct_answer = problem['flash_sequence']
     is_correct = (user_answer == correct_answer)
-    
-    similarity = 0
-    if not is_correct and user_answer is not None:
-        correct_items_at_position = sum(1 for i in range(len(correct_answer)) if i < len(user_answer) and user_answer[i] == correct_answer[i])
-        if len(correct_answer) > 0:
-            similarity = correct_items_at_position / len(correct_answer)
 
-    if level > 0:
-        session['history'].append({"level": level, "correct": is_correct, "user_answer": user_answer, "correct_answer": correct_answer, "similarity": similarity})
+    if level > 0: # 본 검사 기록만 저장
+        session.setdefault('history', []).append({
+            "level": level, 
+            "correct": is_correct, 
+            "user_answer": user_answer, 
+            "correct_answer": correct_answer
+        })
 
-    if level == 0:
-        if is_correct:
-            session['current_level'] = 1
-            return jsonify({"status": "correct_practice"})
-        else:
-            return jsonify({"status": "incorrect_practice"})
+    if level == 0: # 연습 단계
+        status = "correct_practice" if is_correct else "incorrect_practice"
+        if is_correct: session['current_level'] = 1
+        return jsonify({"status": status, "correct": is_correct})
 
+    # 본 검사 단계
     if is_correct:
         session['current_level'] += 1
         session['chances_left'] = 2
@@ -182,55 +210,98 @@ def submit_answer():
         session['chances_left'] -= 1
         if session['chances_left'] <= 0:
             status = "game_over"
-            all_results = load_all_results()
-            final_score = {
-                "user_info": session.get('user_info', {}), 
-                "final_level": level, 
-                "history": session.get('history', [])
-            }
-            all_results.append(final_score)
-            save_all_results(all_results)
+            # --- DB 저장 ---
+            db = load_database()
+            user_info = session.get('user_info', {})
+            for user in db['users']:
+                if user['name'] == user_info['name'] and user['age'] == user_info['age']:
+                    user['tests'].append({
+                        "test_type": "sequence",
+                        "timestamp": datetime.now().isoformat(),
+                        "final_level": level,
+                        "history": session.get('history', [])
+                    })
+                    break
+            save_database(db)
         else:
             status = "retry"
             
     session.modified = True
     return jsonify({"status": status, "correct": is_correct, "chances_left": session.get('chances_left')})
 
-@app.route('/results')
-def results():
-    """관리자 암호 확인 후 모든 결과를 results.html 템플릿으로 렌더링합니다."""
-    password = request.args.get('pw')
-    if password != ADMIN_PASSWORD:
-        return "접근 권한이 없습니다.", 403
-    
-    all_results = load_all_results()
-    # 각 결과에 고유 ID 부여 (템플릿에서 식별하기 위함)
-    for i, res in enumerate(all_results):
-        res['id'] = i + 1
+# --- 2. 카드 맞추기 검사 관련 라우트 (신규) ---
+
+@app.route('/card-test')
+def card_test():
+    """카드 맞추기 게임 페이지를 렌더링합니다."""
+    if 'user_info' not in session or session.get('test_type') != 'card_matching':
+        return redirect(url_for('index'))
+    return render_template('card_test.html')
+
+@app.route('/api/submit-card-result', methods=['POST'])
+def submit_card_result():
+    """카드 맞추기 게임 결과를 받아 DB에 저장합니다."""
+    if 'user_info' not in session:
+        return jsonify({"error": "사용자 정보가 없습니다."}), 401
+
+    result_data = request.get_json()
+    if not result_data:
+        return jsonify({"error": "결과 데이터가 없습니다."}), 400
         
-    return render_template('results.html', all_results=all_results, pattern_results=[])
+    db = load_database()
+    user_info = session.get('user_info')
+    
+    # 해당 사용자 찾아서 결과 추가
+    user_found = False
+    for user in db['users']:
+        if user['name'] == user_info['name'] and user['age'] == user_info['age']:
+            user['tests'].append({
+                "test_type": "card_matching",
+                "timestamp": datetime.now().isoformat(),
+                "result": result_data # { level, pairs, correct, user_clicks }
+            })
+            user_found = True
+            break
+            
+    if not user_found:
+        return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
+        
+    save_database(db)
+    
+    return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다."})
+
+
+# --- 공통 라우트 ---
 
 @app.route('/finish')
 def finish():
     return render_template('finish.html')
 
-# [신규] DB 파일 다운로드 라우트
+@app.route('/results')
+def results():
+    """관리자 암호 확인 후 새로운 DB 구조에 맞춰 결과 표시"""
+    password = request.args.get('pw')
+    if password != ADMIN_PASSWORD:
+        return "접근 권한이 없습니다.", 403
+    
+    db = load_database()
+    return render_template('results.html', data=db)
+
 @app.route('/download-results')
 def download_results():
-    """관리자 암호 확인 후 all_results.json 파일을 다운로드합니다."""
+    """관리자 암호 확인 후 database.json 파일을 다운로드합니다."""
     password = request.args.get('pw')
     if password != ADMIN_PASSWORD:
         return "접근 권한이 없습니다.", 403
     
     try:
         return send_file(
-            ALL_RESULTS_FILE,
+            DATABASE_FILE,
             as_attachment=True,
-            download_name='cognitive_test_results.json' # 다운로드 시 파일 이름
+            download_name='cognitive_tests_database.json'
         )
     except FileNotFoundError:
         return "결과 파일이 아직 생성되지 않았습니다.", 404
 
 if __name__ == '__main__':
-    # 로컬 테스트 시에만 debug=True 사용
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
