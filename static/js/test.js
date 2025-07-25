@@ -44,19 +44,9 @@ function showFlashingSequence() {
     let delay = 1000;
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
-        setTimeout(() => {
-            if (box) {
-                ctx.fillStyle = BOX_COLOR_FLASH;
-                ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
-            }
-        }, delay);
+        setTimeout(() => { if (box) { ctx.fillStyle = BOX_COLOR_FLASH; ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1); } }, delay);
         delay += 500;
-        setTimeout(() => {
-            if (box) {
-                ctx.fillStyle = BOX_COLOR_DEFAULT;
-                ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
-            }
-        }, delay);
+        setTimeout(() => { if (box) { ctx.fillStyle = BOX_COLOR_DEFAULT; ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1); } }, delay);
         delay += 250;
     });
 
@@ -78,14 +68,22 @@ async function submitAnswer() {
             body: JSON.stringify({ answer: userSequence })
         });
         const result = await res.json();
-
-        if (result.status === 'game_over') {
+        
+        // --- [수정된 부분] ---
+        if (result.status === 'test_complete') {
+            // 최종 레벨 통과 시
+            messageLabel.textContent = '모든 단계를 성공적으로 완료했습니다!';
+            setTimeout(() => window.location.href = '/finish', 2000);
+        } else if (result.status === 'game_over') {
+            // 기회 모두 소진 시
             messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
             setTimeout(() => window.location.href = '/finish', 2000);
         } else if (result.status === 'next_level' || result.status === 'retry') {
+            // 다음 레벨 또는 재시도
             messageLabel.textContent = result.correct ? "정답입니다!" : `틀렸습니다. 남은 기회: ${result.chances_left}회.`;
             setTimeout(() => window.location.href = '/intermission', 2000);
         }
+        
     } catch (error) {
         messageLabel.textContent = '서버 통신에 실패했습니다.';
         console.error('Submit Answer Error:', error);

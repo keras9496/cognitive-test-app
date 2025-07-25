@@ -14,8 +14,8 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "w123456789")
 INSTANCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 DATABASE_FILE = os.path.join(INSTANCE_FOLDER, 'database.json')
 
-# --- [신규] 순서 기억 검사의 최대 레벨 설정 ---
-SEQUENCE_MAX_LEVEL = 5 
+# --- [수정] 순서 기억 검사의 최대 레벨을 12로 상향 ---
+SEQUENCE_MAX_LEVEL = 12 
 
 def load_database():
     """통합 데이터베이스 파일을 불러옵니다."""
@@ -38,12 +38,13 @@ def save_database(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
         
 def save_sequence_test_result(final_level):
-    """[신규] 순서 기억 검사 결과를 DB에 저장하는 헬퍼 함수"""
+    """순서 기억 검사 결과를 DB에 저장하는 헬퍼 함수"""
     db = load_database()
     user_info = session.get('user_info', {})
     for user in db['users']:
         if user['name'] == user_info['name'] and user['age'] == user_info['age']:
-            user['tests'].append({
+            # 동일 사용자에게 test 기록 추가
+            user.setdefault('tests', []).append({
                 "test_type": "sequence",
                 "timestamp": datetime.now().isoformat(),
                 "final_level": final_level,
@@ -51,7 +52,6 @@ def save_sequence_test_result(final_level):
             })
             break
     save_database(db)
-
 
 def init_session_for_sequence_test(level=1):
     """순서 기억 검사를 위한 세션을 초기화합니다."""
@@ -66,10 +66,10 @@ def init_session_for_sequence_test(level=1):
     session.permanent = True
 
 def create_sequence_problem(level):
-    if level == 0:
+    if level == 0: # 연습
         num_boxes = 4
         sequence_length = 2
-    else:
+    else: # 본 검사
         num_boxes = level + 4
         sequence_length = level + 1
     
@@ -130,7 +130,7 @@ def start_test():
             "tests": []
         }
         db['users'].append(user_entry)
-        save_database(db) # [수정] 새로운 사용자 등록 시 바로 저장
+        save_database(db)
     
     test_count = len(user_entry.get('tests', []))
     
@@ -140,9 +140,6 @@ def start_test():
     else:
         session['test_type'] = 'card_matching'
         return redirect(url_for('card_test'))
-
-
-# --- 1. 순서 기억 검사 관련 라우트 ---
 
 @app.route('/practice')
 def practice():
@@ -201,34 +198,37 @@ def submit_answer():
             "user_answer": user_answer, "correct_answer": correct_answer
         })
 
-    if level == 0:
+    if level == 0: # 연습 모드
         status = "correct_practice" if is_correct else "incorrect_practice"
         if is_correct: session['current_level'] = 1
         return jsonify({"status": status, "correct": is_correct})
 
+    # 본 검사 모드
     if is_correct:
         next_level = session['current_level'] + 1
         if next_level > SEQUENCE_MAX_LEVEL:
-            # [수정] 최대 레벨 도달 시, 성공으로 간주하고 결과 저장
-            status = "game_over" # 클라이언트가 finish 페이지로 이동하도록 함
+            # [수정] 최종 레벨(12)을 성공적으로 통과
+            status = "test_complete"
             save_sequence_test_result(final_level=session['current_level'])
         else:
+            # 다음 레벨로
             session['current_level'] = next_level
-            session['chances_left'] = 2
+            session['chances_left'] = 2 # 기회 초기화
             status = "next_level"
-    else:
+    else: # 오답일 경우
         session['chances_left'] -= 1
         if session['chances_left'] <= 0:
+            # 기회 모두 소진
             status = "game_over"
-            # [기존] 게임오버 시 결과 저장
             save_sequence_test_result(final_level=session['current_level'])
         else:
+            # 아직 기회가 남음
             status = "retry"
             
     session.modified = True
     return jsonify({"status": status, "correct": is_correct, "chances_left": session.get('chances_left')})
 
-# --- 2. 카드 맞추기 검사 관련 라우트 (변경 없음) ---
+# (이하 카드 맞추기 검사 및 공통 라우트는 변경 없음)
 @app.route('/card-test')
 def card_test():
     if 'user_info' not in session or session.get('test_type') != 'card_matching':
@@ -237,35 +237,25 @@ def card_test():
 
 @app.route('/api/submit-card-result', methods=['POST'])
 def submit_card_result():
-    if 'user_info' not in session:
-        return jsonify({"error": "사용자 정보가 없습니다."}), 401
-
+    if 'user_info' not in session: return jsonify({"error": "사용자 정보가 없습니다."}), 401
     result_data = request.get_json()
-    if not result_data:
-        return jsonify({"error": "결과 데이터가 없습니다."}), 400
-        
+    if not result_data: return jsonify({"error": "결과 데이터가 없습니다."}), 400
     db = load_database()
     user_info = session.get('user_info')
-    
     user_found = False
     for user in db['users']:
         if user['name'] == user_info['name'] and user['age'] == user_info['age']:
-            user['tests'].append({
+            user.setdefault('tests', []).append({
                 "test_type": "card_matching",
                 "timestamp": datetime.now().isoformat(),
                 "result": result_data
             })
             user_found = True
             break
-            
-    if not user_found:
-        return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
-        
+    if not user_found: return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
     save_database(db)
-    
     return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다."})
 
-# --- 공통 라우트 (변경 없음) ---
 @app.route('/finish')
 def finish():
     return render_template('finish.html')
