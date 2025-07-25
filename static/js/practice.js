@@ -53,7 +53,8 @@ function showFlashingSequence() {
 
     setTimeout(() => {
         gameState = 'answering';
-        messageLabel.innerHTML = "기억한 순서대로 클릭하세요.<br><small style='font-size: 0.7em; color: #555;'>선택을 취소하려면 같은 박스를 다시 클릭하세요.</small>";
+        // --- [수정] 안내 문구 스타일 변경 ---
+        messageLabel.innerHTML = "기억한 순서대로 클릭하세요<br>선택을 취소하려면 같은 박스를 다시 클릭하세요";
     }, delay);
 }
 
@@ -69,7 +70,6 @@ async function submitAnswer() {
         });
         const result = await response.json();
 
-        // --- [수정] 정답 시 메시지 변경 ---
         if (result.status === 'correct_practice') {
             messageLabel.textContent = "정답입니다. 본 검사를 시작합니다.";
             setTimeout(() => window.location.href = '/test', 2000);

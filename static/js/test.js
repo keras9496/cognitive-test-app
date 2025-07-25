@@ -11,7 +11,7 @@ const messageLabel = document.getElementById('message-label');
 let problemData = null;
 let userSequence = [];
 let gameState = 'loading';
-let levelStartTime; // [신규] 레벨 시작 시간 기록
+let levelStartTime; // 레벨 시작 시간 기록
 
 /** 박스를 캔버스에 그리는 함수 */
 function drawBoxes() {
@@ -53,9 +53,9 @@ function showFlashingSequence() {
 
     setTimeout(() => {
         gameState = 'answering';
-        // --- [수정] 안내 문구 변경 및 줄바꿈 적용 ---
-        messageLabel.innerHTML = "기억한 순서대로 클릭하세요.<br><small style='font-size: 0.7em; color: #555;'>선택을 취소하려면 같은 박스를 다시 클릭하세요.</small>";
-        levelStartTime = new Date().getTime(); // [신규] 답변 시작 시간 기록
+        // --- [수정] 안내 문구 스타일 변경 ---
+        messageLabel.innerHTML = "기억한 순서대로 클릭하세요<br>선택을 취소하려면 같은 박스를 다시 클릭하세요";
+        levelStartTime = new Date().getTime(); // 답변 시작 시간 기록
     }, delay);
 }
 
@@ -64,14 +64,12 @@ async function submitAnswer() {
     gameState = 'processing';
     messageLabel.textContent = "결과를 확인 중입니다...";
 
-    // --- [신규] 소요 시간 계산 ---
     const timeTaken = (new Date().getTime() - levelStartTime) / 1000;
 
     try {
         const res = await fetch('/api/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // --- [수정] 시간 데이터 추가 전송 ---
             body: JSON.stringify({ 
                 answer: userSequence,
                 time_taken: parseFloat(timeTaken.toFixed(2))
@@ -96,7 +94,7 @@ async function submitAnswer() {
     }
 }
 
-// (이하 나머지 코드는 변경 없음)
+/** 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
     if (gameState !== 'answering') return;
     const rect = canvas.getBoundingClientRect();
@@ -120,6 +118,7 @@ function handleCanvasClick(event) {
     }
 }
 
+/** 페이지 로드 시, 서버에서 현재 문제를 가져와 테스트 시작 */
 async function initializeTest() {
     gameState = 'loading';
     messageLabel.textContent = '문제를 가져오는 중입니다...';
