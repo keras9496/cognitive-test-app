@@ -11,11 +11,9 @@ const instructionP = document.getElementById('instruction');
 // --- 게임 상태 변수 ---
 let problemData = null;
 let userSequence = [];
-let gameState = 'loading'; // loading, memorizing, answering, processing
+let gameState = 'loading';
 
 // --- 함수 정의 ---
-
-/** 박스를 캔버스에 그리는 함수 */
 function drawBoxes() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!problemData || !problemData.boxes) return;
@@ -39,7 +37,6 @@ function drawBoxes() {
     });
 }
 
-/** 문제의 정답 순서대로 박스를 깜빡이는 애니메이션 함수 */
 function showFlashingSequence() {
     gameState = 'memorizing';
     messageLabel.textContent = "순서를 기억하세요...";
@@ -48,29 +45,18 @@ function showFlashingSequence() {
     let delay = 1000;
     problemData.flash_sequence.forEach(boxId => {
         const box = problemData.boxes.find(b => b.id === boxId);
-        setTimeout(() => {
-            if (box) {
-                ctx.fillStyle = BOX_COLOR_FLASH;
-                ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
-            }
-        }, delay);
+        setTimeout(() => { if (box) { ctx.fillStyle = BOX_COLOR_FLASH; ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1); } }, delay);
         delay += 500;
-        setTimeout(() => {
-            if (box) {
-                ctx.fillStyle = BOX_COLOR_DEFAULT;
-                ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
-            }
-        }, delay);
+        setTimeout(() => { if (box) { ctx.fillStyle = BOX_COLOR_DEFAULT; ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1); } }, delay);
         delay += 250;
     });
 
     setTimeout(() => {
         gameState = 'answering';
-        messageLabel.textContent = "기억한 순서대로 클릭하세요!";
+        messageLabel.innerHTML = "기억한 순서대로 클릭하세요.<br><small style='font-size: 0.7em; color: #555;'>선택을 취소하려면 같은 박스를 다시 클릭하세요.</small>";
     }, delay);
 }
 
-/** 사용자의 답안을 서버로 전송하는 함수 */
 async function submitAnswer() {
     gameState = 'processing';
     messageLabel.textContent = "채점 중입니다...";
@@ -83,11 +69,12 @@ async function submitAnswer() {
         });
         const result = await response.json();
 
+        // --- [수정] 정답 시 메시지 변경 ---
         if (result.status === 'correct_practice') {
-            messageLabel.textContent = result.message;
+            messageLabel.textContent = "정답입니다. 본 검사를 시작합니다.";
             setTimeout(() => window.location.href = '/test', 2000);
         } else if (result.status === 'incorrect_practice') {
-            messageLabel.textContent = result.message;
+            messageLabel.textContent = "틀렸습니다. 다시 시도해보세요.";
             setTimeout(() => window.location.href = '/practice', 2000);
         } else {
             messageLabel.textContent = `오류: ${result.message || '알 수 없는 오류'}`;
@@ -98,18 +85,14 @@ async function submitAnswer() {
     }
 }
 
-/** 캔버스 클릭 이벤트 처리 함수 */
 function handleCanvasClick(event) {
     if (gameState !== 'answering') return;
-
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-
     const clickedBox = problemData.boxes.find(box =>
         x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2
     );
-
     if (clickedBox) {
         const boxId = clickedBox.id;
         const boxIndex = userSequence.indexOf(boxId);
@@ -125,25 +108,20 @@ function handleCanvasClick(event) {
     }
 }
 
-/** 페이지 로드 시, 서버에서 현재 문제를 가져와 테스트 시작 */
 async function initializeTest() {
     gameState = 'loading';
     messageLabel.textContent = '연습 문제를 불러오는 중입니다...';
-
     try {
         const response = await fetch('/api/get-current-problem');
         if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
-
         problemData = await response.json();
         userSequence = [];
         drawBoxes();
         showFlashingSequence();
-
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;
         console.error(error);
     }
 }
-
 canvas.addEventListener('click', handleCanvasClick);
 document.addEventListener('DOMContentLoaded', initializeTest);

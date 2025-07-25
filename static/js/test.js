@@ -10,7 +10,8 @@ const messageLabel = document.getElementById('message-label');
 // --- 게임 상태 변수 ---
 let problemData = null;
 let userSequence = [];
-let gameState = 'loading'; // loading, memorizing, answering, processing
+let gameState = 'loading';
+let levelStartTime; // [신규] 레벨 시작 시간 기록
 
 /** 박스를 캔버스에 그리는 함수 */
 function drawBoxes() {
@@ -52,7 +53,9 @@ function showFlashingSequence() {
 
     setTimeout(() => {
         gameState = 'answering';
-        messageLabel.textContent = "기억한 순서대로 박스를 클릭하세요!";
+        // --- [수정] 안내 문구 변경 및 줄바꿈 적용 ---
+        messageLabel.innerHTML = "기억한 순서대로 클릭하세요.<br><small style='font-size: 0.7em; color: #555;'>선택을 취소하려면 같은 박스를 다시 클릭하세요.</small>";
+        levelStartTime = new Date().getTime(); // [신규] 답변 시작 시간 기록
     }, delay);
 }
 
@@ -61,25 +64,28 @@ async function submitAnswer() {
     gameState = 'processing';
     messageLabel.textContent = "결과를 확인 중입니다...";
 
+    // --- [신규] 소요 시간 계산 ---
+    const timeTaken = (new Date().getTime() - levelStartTime) / 1000;
+
     try {
         const res = await fetch('/api/submit-answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ answer: userSequence })
+            // --- [수정] 시간 데이터 추가 전송 ---
+            body: JSON.stringify({ 
+                answer: userSequence,
+                time_taken: parseFloat(timeTaken.toFixed(2))
+            })
         });
         const result = await res.json();
         
-        // --- [수정된 부분] ---
         if (result.status === 'test_complete') {
-            // 최종 레벨 통과 시
             messageLabel.textContent = '모든 단계를 성공적으로 완료했습니다!';
             setTimeout(() => window.location.href = '/finish', 2000);
         } else if (result.status === 'game_over') {
-            // 기회 모두 소진 시
             messageLabel.textContent = '기회를 모두 소진하여 테스트를 종료합니다.';
             setTimeout(() => window.location.href = '/finish', 2000);
         } else if (result.status === 'next_level' || result.status === 'retry') {
-            // 다음 레벨 또는 재시도
             messageLabel.textContent = result.correct ? "정답입니다!" : `틀렸습니다. 남은 기회: ${result.chances_left}회.`;
             setTimeout(() => window.location.href = '/intermission', 2000);
         }
@@ -90,18 +96,15 @@ async function submitAnswer() {
     }
 }
 
-/** 캔버스 클릭 이벤트 처리 함수 */
+// (이하 나머지 코드는 변경 없음)
 function handleCanvasClick(event) {
     if (gameState !== 'answering') return;
-
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-
     const clickedBox = problemData.boxes.find(box =>
         x >= box.x1 && x <= box.x2 && y >= box.y1 && y <= box.y2
     );
-
     if (clickedBox) {
         const boxId = clickedBox.id;
         const boxIndex = userSequence.indexOf(boxId);
@@ -117,30 +120,24 @@ function handleCanvasClick(event) {
     }
 }
 
-/** 페이지 로드 시, 서버에서 현재 문제를 가져와 테스트 시작 */
 async function initializeTest() {
     gameState = 'loading';
     messageLabel.textContent = '문제를 가져오는 중입니다...';
-
     try {
         const response = await fetch('/api/get-current-problem');
         if (!response.ok) throw new Error('서버에서 문제를 가져오는 데 실패했습니다.');
-
         problemData = await response.json();
         if (problemData.error) {
             messageLabel.textContent = `오류: ${problemData.error}`;
             return;
         }
-
         userSequence = [];
         drawBoxes();
         showFlashingSequence();
-
     } catch (error) {
         messageLabel.textContent = `오류: ${error.message}`;
         console.error(error);
     }
 }
-
 canvas.addEventListener('click', handleCanvasClick);
 document.addEventListener('DOMContentLoaded', initializeTest);

@@ -4,7 +4,7 @@ const startBtn = document.getElementById('start-btn');
 const statusMessage = document.getElementById('status-message');
 const timerDisplay = document.getElementById('timer');
 
-// --- 게임 설정 ---
+// --- 게임 설정 (변경 없음) ---
 const SYMBOLS = [
     { id: 'star', svg: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,17.27L18.18,21L17,14.64L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7,14.64L5.82,21L12,17.27Z"/></svg>' },
     { id: 'circle', svg: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>' },
@@ -26,7 +26,8 @@ let flippedCards = [];
 let matchedPairs = 0;
 let lockBoard = false;
 let timerInterval;
-let gameResults = []; // 각 레벨의 결과를 저장할 배열
+let gameResults = [];
+let levelStartTime; // [신규] 레벨 시작 시간 기록
 
 // --- 이벤트 리스너 ---
 startBtn.addEventListener('click', handleStart);
@@ -35,7 +36,6 @@ startBtn.addEventListener('click', handleStart);
 
 function handleStart() {
     if (currentLevelIndex >= LEVELS.length) {
-        // 모든 레벨 완료 후 최종 결과 전송
         finishGameAndSubmit();
         return;
     }
@@ -60,17 +60,16 @@ function setupLevel(levelIndex) {
     let cardData = [...levelSymbols, ...levelSymbols];
     cardData.sort(() => 0.5 - Math.random());
     
-    // 현재 레벨 결과 저장을 위한 객체 초기화
     gameResults[levelIndex] = {
         level: level.name,
         pairs: level.pairs,
-        correct_card_pairs: {}, // { symbolId: [cardIndex1, cardIndex2] }
-        user_click_sequence: [] // 사용자가 클릭한 카드의 인덱스 순서
+        correct_card_pairs: {},
+        user_click_sequence: [],
+        time_taken: null // [신규] 시간 필드 추가
     };
     
     gameBoard.innerHTML = '';
     cards = cardData.map((symbolData, index) => {
-        // 정답 카드 위치 쌍 저장
         if (!gameResults[levelIndex].correct_card_pairs[symbolData.id]) {
             gameResults[levelIndex].correct_card_pairs[symbolData.id] = [];
         }
@@ -97,14 +96,8 @@ function createCardElement(symbolData, index) {
     const card = document.createElement('div');
     card.classList.add('card');
     card.dataset.symbolId = symbolData.id;
-    card.dataset.cardIndex = index; // 카드 고유 인덱스 저장
-
-    card.innerHTML = `
-        <div class="card-inner">
-            <div class="card-face card-front"></div>
-            <div class="card-face card-back">${symbolData.svg}</div>
-        </div>
-    `;
+    card.dataset.cardIndex = index;
+    card.innerHTML = `<div class="card-inner"><div class="card-face card-front"></div><div class="card-face card-back">${symbolData.svg}</div></div>`;
     card.classList.add('flipped');
     card.addEventListener('click', () => handleCardClick(card));
     return card;
@@ -114,6 +107,7 @@ function hideCards() {
     cards.forEach(card => card.classList.remove('flipped'));
     lockBoard = false;
     statusMessage.textContent = `${LEVELS[currentLevelIndex].name}: 같은 그림의 카드를 찾으세요.`;
+    levelStartTime = new Date().getTime(); // [신규] 답변 시작 시간 기록
 }
 
 function handleCardClick(card) {
@@ -121,9 +115,7 @@ function handleCardClick(card) {
         return;
     }
     
-    // 사용자 클릭 순서 저장
     gameResults[currentLevelIndex].user_click_sequence.push(parseInt(card.dataset.cardIndex));
-
     card.classList.add('flipped');
     flippedCards.push(card);
 
@@ -161,6 +153,10 @@ function resetTurn() {
 }
 
 function completeLevel() {
+    // --- [신규] 레벨 완료 시 시간 계산 및 저장 ---
+    const timeTaken = (new Date().getTime() - levelStartTime) / 1000;
+    gameResults[currentLevelIndex].time_taken = parseFloat(timeTaken.toFixed(2));
+
     statusMessage.textContent = `${LEVELS[currentLevelIndex].name} 성공!`;
     currentLevelIndex++;
     startBtn.textContent = (currentLevelIndex < LEVELS.length) ? '다음 단계로' : '결과 저장 및 종료';
@@ -183,10 +179,8 @@ async function finishGameAndSubmit() {
         }
 
         const result = await response.json();
-        console.log('서버 응답:', result);
         statusMessage.textContent = '결과가 성공적으로 저장되었습니다!';
         
-        // 2초 후 종료 페이지로 이동
         setTimeout(() => {
             window.location.href = '/finish';
         }, 2000);

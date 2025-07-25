@@ -14,7 +14,7 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "w123456789")
 INSTANCE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 DATABASE_FILE = os.path.join(INSTANCE_FOLDER, 'database.json')
 
-# --- [수정] 순서 기억 검사의 최대 레벨을 12로 상향 ---
+# --- 순서 기억 검사의 최대 레벨 설정 ---
 SEQUENCE_MAX_LEVEL = 12 
 
 def load_database():
@@ -43,7 +43,6 @@ def save_sequence_test_result(final_level):
     user_info = session.get('user_info', {})
     for user in db['users']:
         if user['name'] == user_info['name'] and user['age'] == user_info['age']:
-            # 동일 사용자에게 test 기록 추가
             user.setdefault('tests', []).append({
                 "test_type": "sequence",
                 "timestamp": datetime.now().isoformat(),
@@ -66,10 +65,10 @@ def init_session_for_sequence_test(level=1):
     session.permanent = True
 
 def create_sequence_problem(level):
-    if level == 0: # 연습
+    if level == 0:
         num_boxes = 4
         sequence_length = 2
-    else: # 본 검사
+    else:
         num_boxes = level + 4
         sequence_length = level + 1
     
@@ -187,48 +186,50 @@ def submit_answer():
     user_answer = data.get('answer')
     level = session.get('current_level', 0)
     problem = session.get('current_problem')
+    
+    # --- [수정] 시간 데이터 받기 ---
+    time_taken = data.get('time_taken', None)
+
     if not problem: return jsonify({"error": "No problem in session"}), 400
 
     correct_answer = problem['flash_sequence']
     is_correct = (user_answer == correct_answer)
 
     if level > 0:
+        # --- [수정] history에 시간 정보 추가 ---
         session.setdefault('history', []).append({
-            "level": level, "correct": is_correct, 
-            "user_answer": user_answer, "correct_answer": correct_answer
+            "level": level, 
+            "correct": is_correct, 
+            "user_answer": user_answer, 
+            "correct_answer": correct_answer,
+            "time_taken": time_taken 
         })
 
-    if level == 0: # 연습 모드
+    if level == 0:
         status = "correct_practice" if is_correct else "incorrect_practice"
         if is_correct: session['current_level'] = 1
         return jsonify({"status": status, "correct": is_correct})
 
-    # 본 검사 모드
     if is_correct:
         next_level = session['current_level'] + 1
         if next_level > SEQUENCE_MAX_LEVEL:
-            # [수정] 최종 레벨(12)을 성공적으로 통과
             status = "test_complete"
             save_sequence_test_result(final_level=session['current_level'])
         else:
-            # 다음 레벨로
             session['current_level'] = next_level
-            session['chances_left'] = 2 # 기회 초기화
+            session['chances_left'] = 2
             status = "next_level"
-    else: # 오답일 경우
+    else:
         session['chances_left'] -= 1
         if session['chances_left'] <= 0:
-            # 기회 모두 소진
             status = "game_over"
             save_sequence_test_result(final_level=session['current_level'])
         else:
-            # 아직 기회가 남음
             status = "retry"
             
     session.modified = True
     return jsonify({"status": status, "correct": is_correct, "chances_left": session.get('chances_left')})
 
-# (이하 카드 맞추기 검사 및 공통 라우트는 변경 없음)
 @app.route('/card-test')
 def card_test():
     if 'user_info' not in session or session.get('test_type') != 'card_matching':
