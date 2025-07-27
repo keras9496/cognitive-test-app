@@ -129,10 +129,11 @@ def start_test():
         db['users'].append(user_entry)
         save_database(db)
     
-    # [수정] 기존의 번갈아 실행하는 로직으로 복원
-    test_count = len(user_entry.get('tests', []))
+    # [수정] 핵심 테스트(sequence, card_matching)의 개수를 세어 다음 검사를 결정
+    primary_tests = [t for t in user_entry.get('tests', []) if t.get('test_type') in ['sequence', 'card_matching']]
+    primary_test_count = len(primary_tests)
     
-    if test_count % 2 == 0:
+    if primary_test_count % 2 == 0:
         # 순서 기억 검사 회차
         session['current_test_flow'] = 'sequence' # 플로우 구분을 위한 세션 변수
         return redirect(url_for('practice'))
@@ -290,7 +291,7 @@ def submit_card_result():
     if not user_found: return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
     save_database(db)
     # [중요] 카드 테스트는 끝나면 바로 최종 종료 페이지로 가야 하므로, JS에서 사용할 URL을 전달
-    return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다.", "next_url": url_for('final_finish')})
+    return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다."})
 
 @app.route('/finish')
 def finish():
