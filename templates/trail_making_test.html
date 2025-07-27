@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한국어 트레일 메이킹 테스트</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .container {
+             max-width: 900px;
+             margin: 2rem auto;
+             padding: 2rem;
+             background-color: white;
+             border-radius: 12px;
+             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            border: 2px solid #333;
+            background-color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: 700;
+            user-select: none;
+            transition: all 0.2s ease-in-out;
+        }
+        .circle.correct {
+            background-color: #FFD700;
+            border-color: #FFD700;
+        }
+        .circle.error {
+            animation: shake 0.5s;
+            border-color: #DC2626;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .test-area {
+            width: 100%;
+            height: 70vh;
+            position: relative;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background-color: #fafafa;
+        }
+        .line-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .draggable {
+            touch-action: none;
+        }
+        .drop-zone {
+            width: 60px;
+            height: 60px;
+            border: 2px dashed #94a3b8;
+        }
+        .drop-zone.over {
+            background-color: #e0f2fe;
+        }
+        .consonant-card {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #64748b;
+            cursor: grab;
+        }
+        .btn {
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-secondary {
+            background-color: #16a34a;
+            color: white;
+        }
+         .btn-secondary:hover {
+            background-color: #15803d;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container" class="container">
+        <!-- 1. Welcome Screen -->
+        <div id="welcome-screen" class="text-center space-y-6">
+            <h1 class="text-3xl font-bold text-slate-900">다음 검사: 트레일 메이킹 테스트</h1>
+            <p class="text-lg">이 과제는 당신의 시각적 주의력과 처리 속도를 측정합니다.<br>각 단계의 지시사항을 잘 읽고, 최대한 빠르고 정확하게 과제를 수행해 주세요.</p>
+            <p class="text-sm text-slate-500">과제를 30초 이상 방치하면 시간이 초과될 수 있습니다.</p>
+            <button id="start-button" class="btn btn-primary">시작하기</button>
+        </div>
+
+        <!-- 2. Test A Practice -->
+        <div id="test-a-practice-screen" class="hidden text-center space-y-4">
+            <h2 class="text-2xl font-bold">A형 검사 (연습)</h2>
+            <p>숫자 1부터 8까지, 순서대로 모든 원을 이어서 선택해 주세요.</p>
+            <div id="test-a-practice-area" class="test-area">
+                <svg class="line-svg"></svg>
+            </div>
+            <button id="start-test-a-button" class="btn btn-secondary mt-4">본 검사 시작</button>
+        </div>
+        
+        <!-- 3. Test A Main -->
+        <div id="test-a-main-screen" class="hidden text-center space-y-4">
+            <h2 class="text-2xl font-bold">A형 검사 (본 검사)</h2>
+            <p>숫자 1부터 25까지, 순서대로 모든 원을 이어서 선택해 주세요.</p>
+            <div id="test-a-main-area" class="test-area">
+                <svg class="line-svg"></svg>
+            </div>
+        </div>
+
+        <!-- 4. Consonant Check -->
+        <div id="consonant-check-screen" class="hidden text-center space-y-4">
+            <h2 class="text-2xl font-bold">중간 과제: 자음 순서 배열하기</h2>
+            <p>아래 카드들을 드래그하여 빈칸에 맞는 올바른 자음 순서를 완성하세요.</p>
+            <div id="consonant-drop-area" class="flex justify-center items-center gap-2 flex-wrap p-4 bg-slate-100 rounded-lg"></div>
+            <div id="consonant-drag-area" class="flex justify-center items-center gap-2 flex-wrap p-4 mt-4"></div>
+            <p class="text-sm text-red-500">실패 횟수: <span id="consonant-failures">0</span></p>
+            <button id="start-test-b-practice-button" class="btn btn-primary mt-4 hidden">다음으로</button>
+        </div>
+
+        <!-- 5. Test B Practice -->
+        <div id="test-b-practice-screen" class="hidden text-center space-y-4">
+            <h2 class="text-2xl font-bold">B형 검사 (연습)</h2>
+            <p>숫자와 글자를 번갈아 가며 순서대로 선택하세요. (예: 1 → 가 → 2 → 나 ...)</p>
+            <div id="test-b-practice-area" class="test-area">
+                <svg class="line-svg"></svg>
+            </div>
+            <button id="start-test-b-button" class="btn btn-secondary mt-4">본 검사 시작</button>
+        </div>
+
+        <!-- 6. Test B Main -->
+        <div id="test-b-main-screen" class="hidden text-center space-y-4">
+            <h2 class="text-2xl font-bold">B형 검사 (본 검사)</h2>
+            <p>숫자와 글자를 번갈아 가며 순서대로 선택하세요. (예: 1 → 가 → 2 → 나 ...)</p>
+            <div id="test-b-main-area" class="test-area">
+                <svg class="line-svg"></svg>
+            </div>
+        </div>
+        
+        <!-- 7. Loading Screen -->
+        <div id="loading-screen" class="hidden text-center space-y-6">
+            <h1 class="text-3xl font-bold text-slate-900">검사 결과를 저장 중입니다...</h1>
+            <p class="text-lg">잠시만 기다려 주세요. 다음 검사로 이동합니다.</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/trail_making_test.js') }}"></script>
+</body>
+</html>
