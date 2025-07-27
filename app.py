@@ -42,7 +42,7 @@ def save_sequence_test_result(final_level):
     db = load_database()
     user_info = session.get('user_info', {})
     for user in db['users']:
-        if user['name'] == user_info['name'] and user['age'] == user_info['age']:
+        if user.get('name') == user_info.get('name') and user.get('age') == user_info.get('age'):
             user.setdefault('tests', []).append({
                 "test_type": "sequence",
                 "timestamp": datetime.now().isoformat(),
@@ -55,10 +55,7 @@ def save_sequence_test_result(final_level):
 def init_session_for_sequence_test(level=1):
     """순서 기억 검사를 위한 세션을 초기화합니다."""
     user_info = session.get('user_info', {})
-    test_type = session.get('test_type')
-    session.clear()
-    session['user_info'] = user_info
-    session['test_type'] = test_type
+    # session.clear() # 세션 전체를 지우면 안됨 (current_test_flow 유지)
     session['current_level'] = level
     session['chances_left'] = 2
     session['history'] = []
@@ -100,6 +97,7 @@ def generate_box_positions(num_boxes, canvas_width, canvas_height):
 
 @app.route('/')
 def index():
+    session.clear()
     return render_template('index.html')
 
 @app.route('/start-test', methods=['POST'])
@@ -117,7 +115,7 @@ def start_test():
     
     user_entry = None
     for user in db['users']:
-        if user['name'] == user_info['name'] and user['age'] == user_info['age']:
+        if user.get('name') == user_info.get('name') and user.get('age') == user_info.get('age'):
             user_entry = user
             break
 
@@ -131,25 +129,29 @@ def start_test():
         db['users'].append(user_entry)
         save_database(db)
     
+    # [수정] 기존의 번갈아 실행하는 로직으로 복원
     test_count = len(user_entry.get('tests', []))
     
     if test_count % 2 == 0:
-        session['test_type'] = 'sequence'
+        # 순서 기억 검사 회차
+        session['current_test_flow'] = 'sequence' # 플로우 구분을 위한 세션 변수
         return redirect(url_for('practice'))
     else:
-        session['test_type'] = 'card_matching'
+        # 카드 짝 맞추기 검사 회차
+        session['current_test_flow'] = 'card' # 플로우 구분을 위한 세션 변수
         return redirect(url_for('card_test'))
+
 
 @app.route('/practice')
 def practice():
-    if 'user_info' not in session or session.get('test_type') != 'sequence':
+    if 'user_info' not in session:
         return redirect(url_for('index'))
     init_session_for_sequence_test(level=0)
     return redirect(url_for('intermission'))
 
 @app.route('/test')
 def test():
-    if 'user_info' not in session or session.get('test_type') != 'sequence':
+    if 'user_info' not in session:
         return redirect(url_for('index'))
     init_session_for_sequence_test(level=1)
     return redirect(url_for('intermission'))
@@ -228,9 +230,43 @@ def submit_answer():
     session.modified = True
     return jsonify({"status": status, "correct": is_correct, "chances_left": session.get('chances_left')})
 
+@app.route('/trail_making_test')
+def trail_making_test():
+    if 'user_info' not in session:
+        return redirect(url_for('index'))
+    return render_template('trail_making_test.html')
+
+@app.route('/save_trail_making_results', methods=['POST'])
+def save_trail_making_results():
+    if 'user_info' not in session:
+        return jsonify({"success": False, "error": "User session not found"}), 401
+    
+    result_data = request.get_json()
+    if not result_data:
+        return jsonify({"success": False, "error": "No result data provided"}), 400
+
+    db = load_database()
+    user_info = session.get('user_info')
+    user_found = False
+    for user in db['users']:
+        if user.get('name') == user_info.get('name') and user.get('age') == user_info.get('age'):
+            user.setdefault('tests', []).append({
+                "test_type": "trail_making",
+                "timestamp": datetime.now().isoformat(),
+                "result": result_data
+            })
+            user_found = True
+            break
+    
+    if not user_found:
+        return jsonify({"success": False, "error": "User not found in database"}), 404
+
+    save_database(db)
+    return jsonify({"success": True, "next_url": url_for('final_finish')})
+
 @app.route('/card-test')
 def card_test():
-    if 'user_info' not in session or session.get('test_type') != 'card_matching':
+    if 'user_info' not in session:
         return redirect(url_for('index'))
     return render_template('card_test.html')
 
@@ -243,7 +279,7 @@ def submit_card_result():
     user_info = session.get('user_info')
     user_found = False
     for user in db['users']:
-        if user['name'] == user_info['name'] and user['age'] == user_info['age']:
+        if user.get('name') == user_info.get('name') and user.get('age') == user_info.get('age'):
             user.setdefault('tests', []).append({
                 "test_type": "card_matching",
                 "timestamp": datetime.now().isoformat(),
@@ -253,10 +289,21 @@ def submit_card_result():
             break
     if not user_found: return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
     save_database(db)
-    return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다."})
+    # [중요] 카드 테스트는 끝나면 바로 최종 종료 페이지로 가야 하므로, JS에서 사용할 URL을 전달
+    return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다.", "next_url": url_for('final_finish')})
 
 @app.route('/finish')
 def finish():
+    # [수정] 어떤 테스트를 했는지에 따라 분기
+    if session.get('current_test_flow') == 'sequence':
+        # 순서 기억 검사 후에는 트레일 메이킹으로
+        return redirect(url_for('trail_making_test'))
+    else:
+        # 카드 짝 맞추기 후에는 바로 최종 종료
+        return redirect(url_for('final_finish'))
+
+@app.route('/final_finish')
+def final_finish():
     return render_template('finish.html')
 
 @app.route('/results')
@@ -271,7 +318,7 @@ def results():
 def download_results():
     password = request.args.get('pw')
     if password != ADMIN_PASSWORD:
-        return "접근 권한이 없습니다.", 403
+        return "결과 파일이 아직 생성되지 않았습니다.", 403
     try:
         return send_file(
             DATABASE_FILE,
