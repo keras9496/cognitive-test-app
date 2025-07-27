@@ -102,7 +102,21 @@ def index():
     session.pop('current_level', None)
     session.pop('chances_left', None)
     session.pop('current_problem', None)
+    session.pop('user_info', None)
     return render_template('index.html')
+
+@app.route('/start-test', methods=['POST'])
+def start_test():
+    """사용자 정보 입력을 처리하고 첫 테스트를 시작합니다."""
+    # 사용자 정보를 세션에 저장합니다.
+    session['user_info'] = {
+        'name': request.form.get('name'),
+        'age': request.form.get('age'),
+        'gender': request.form.get('gender'),
+        'test_date': request.form.get('test_date')
+    }
+    # 첫 번째 테스트인 연습 페이지로 리디렉션합니다.
+    return redirect(url_for('practice'))
 
 # --- 순서 기억 테스트 (기존 기능 복원) ---
 @app.route('/practice')
@@ -253,4 +267,3 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-
