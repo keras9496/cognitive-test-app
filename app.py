@@ -56,11 +56,27 @@ class TrailMakingResult(db.Model):
 def make_session_permanent():
     session.permanent = True
 
+
 @app.route('/')
 def index():
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
     return render_template('index.html')
+
+
+# --- 아래 코드를 추가해주세요 ---
+@app.route('/start-test', methods=['POST'])
+def start_test():
+    # form에서 전송된 사용자 정보를 세션에 저장할 수 있습니다 (선택 사항)
+    # session['user_name'] = request.form.get('name')
+    # session['user_age'] = request.form.get('age')
+    # session['user_gender'] = request.form.get('gender')
+    # session['test_date'] = request.form.get('test_date')
+    
+    # 첫 번째 테스트인 practice 페이지로 리다이렉트
+    return redirect(url_for('practice'))
+# -----------------------------
+
 
 @app.route('/practice')
 def practice():
