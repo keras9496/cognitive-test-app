@@ -254,13 +254,12 @@ document.addEventListener('DOMContentLoaded', function() {
         currentStage = 'B_MAIN';
         showScreen('test-b-main-screen');
         const items = [];
-        // [오류 수정] B형 본검사는 1-가-2-나... 13-자 까지 진행되어야 함 (총 25개)
-        // 하지만 현재 자음은 14개 이므로, 13개까지만 사용
-        for (let i = 0; i < 13; i++) {
+        // [오류 수정] 1-가 ... 12-자, 13 순서로 25개 항목 생성
+        for (let i = 0; i < 12; i++) {
             items.push(i + 1);
             items.push(KOREAN_CONSONANTS[i]);
         }
-        items.push(13); // 마지막 숫자 추가
+        items.push(13); // 마지막 숫자 13 추가
         
         currentTest = new TrailMakingTest('test-b-main-area', items, (duration, errors) => {
             userResults.testB_time = parseFloat(duration.toFixed(2));
