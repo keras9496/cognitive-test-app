@@ -255,11 +255,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showScreen('test-b-main-screen');
         const items = [];
         // [오류 수정] 1-가 ... 12-자, 13 순서로 25개 항목 생성
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 14; i++) {
             items.push(i + 1);
             items.push(KOREAN_CONSONANTS[i]);
         }
-        items.push(13); // 마지막 숫자 13 추가
         
         currentTest = new TrailMakingTest('test-b-main-area', items, (duration, errors) => {
             userResults.testB_time = parseFloat(duration.toFixed(2));
