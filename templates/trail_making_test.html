@@ -106,6 +106,41 @@
          .btn-secondary:hover {
             background-color: #15803d;
         }
+        .consonant-box, .consonant-placeholder {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.25rem; /* 기존보다 1.5배 크게 */
+            font-weight: 700;
+            user-select: none;
+            transition: all 0.2s ease-in-out;
+        }
+        .consonant-box {
+            background-color: white;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .consonant-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .consonant-placeholder {
+            background-color: #f1f5f9;
+        }
+        .consonant-placeholder.correct {
+            background-color: #dbeafe; /* 파란색 계열 */
+            color: #1e40af;
+            border-color: #93c5fd;
+        }
+        .consonant-box.error {
+            animation: shake 0.5s;
+            border-color: #ef4444; /* 붉은색 */
+            background-color: #fee2e2;
+        }
     </style>
 </head>
 <body>
@@ -138,17 +173,19 @@
         </div>
 
         <!-- 4. Consonant Check -->
-        <div id="consonant-check-screen" class="hidden">
-            <h2 class="text-xl font-semibold mb-4">자음 순서대로 클릭하기</h2>
-            <p class="mb-4">화면에 흩어진 자음들을 <strong class="text-blue-500">가</strong>부터 <strong class="text-blue-500">하</strong> 순서대로 클릭해주세요.</p>
-            <div id="consonant-drop-area" class="grid grid-cols-14 gap-2 justify-center items-center mb-6">
+        <div id="consonant-check-screen" class="hidden text-center space-y-4">
+            <h2 class="text-2xl font-bold">중간 과제: 자음 순서 배열하기</h2>
+            <p>아래 자음들을 순서에 맞게 (가, 나, 다...) 클릭하여 위 칸을 채워주세요.</p>
+            
+            <div id="consonant-target-area" class="flex flex-wrap justify-center items-center gap-2 p-4 bg-slate-100 rounded-lg min-h-[140px]">
                 </div>
-            <div id="consonant-drag-area" class="grid grid-cols-7 gap-4 justify-center items-center">
-                </div>
-            <p class="mt-4 text-red-500">틀린 클릭 횟수: <span id="consonant-failures">0</span></p>
-            <button id="start-test-b-practice-button" class="start-btn mt-6" disabled>B형 연습 시작</button>
-        </div>
 
+            <div id="consonant-source-area" class="flex flex-wrap justify-center items-center gap-4 p-4 mt-4">
+                </div>
+
+            <p class="text-sm text-red-600 font-semibold">틀린 횟수: <span id="consonant-failures">0</span></p>
+            <button id="start-test-b-practice-button" class="btn btn-primary mt-4">B형 연습 시작</button>
+        </div>
         <!-- 5. Test B Practice -->
         <div id="test-b-practice-screen" class="hidden text-center space-y-4">
             <h2 class="text-2xl font-bold">B형 검사 (연습)</h2>
