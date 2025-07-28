@@ -6,11 +6,16 @@ document.addEventListener('DOMContentLoaded', function() {
         testA_time: 0,
         testA_errors: 0,
         consonant_check_failures: 0,
+        consonant_check_start_time: 0,
+        consonant_check_end_time: 0,
         testB_time: 0,
         testB_errors: 0,
     };
-
-    const KOREAN_CONSONANTS = ['가', '나', '다', '라', '마', '바', '사', '아', '자', '차', '카', '타', '파', '하'];
+    let consonantSequence = [...'가나다라마바사아자차카타파하'];
+    let shuffledConsonants = [];
+    let currentConsonantIndex = 0;
+    const placedConsonants = Array(14).fill(null);
+    let consonantCheckStartTime = 0;
 
     // --- 화면 전환 함수 ---
     const screens = document.querySelectorAll('#app-container > div');
@@ -44,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
             this.generateCircles();
             this.addClickListeners();
         }
-        
+
         generateCircles() {
             const positions = [];
             const containerRect = this.container.getBoundingClientRect();
@@ -75,8 +80,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 circle.className = 'circle';
                 circle.style.left = `${newPos.x}px`;
                 circle.style.top = `${newPos.y}px`;
-                circle.textContent = this.items[i];
-                circle.dataset.value = this.items[i];
+                circle.textContent = this.items;
+                circle.dataset.value = this.items;
                 this.container.appendChild(circle);
                 this.circles.push(circle);
             }
@@ -90,8 +95,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!e.target.classList.contains('circle')) return;
 
             const clickedValue = e.target.dataset.value;
-            const expectedValue = this.items[this.correctIndex];
-            
+            const expectedValue = this.items;
+
             if (clickedValue == expectedValue) {
                 if (this.correctIndex === 0) {
                     this.startTime = Date.now();
@@ -104,9 +109,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.drawLine(this.lastClickedCircle, e.target);
                 }
                 this.lastClickedCircle = e.target;
-                
+
                 this.correctIndex++;
-                
+
                 if (this.correctIndex === this.items.length) {
                     const endTime = Date.now();
                     const duration = (endTime - this.startTime) / 1000;
@@ -118,7 +123,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => e.target.classList.remove('error'), 500);
             }
         }
-        
+
         drawLine(fromCircle, toCircle) {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             const fromRect = fromCircle.getBoundingClientRect();
@@ -134,96 +139,61 @@ document.addEventListener('DOMContentLoaded', function() {
             this.svg.appendChild(line);
         }
     }
-    
-    // --- 자음 순서 맞추기 로직 ---
+
+    // --- 새로운 자음 순서 맞추기 로직 ---
     function setupConsonantCheck() {
-        const dropArea = document.getElementById('consonant-drop-area');
+        currentConsonantIndex = 0;
+        placedConsonants.fill(null);
+        shuffledConsonants = [...consonantSequence].sort(() => Math.random() - 0.5);
+
         const dragArea = document.getElementById('consonant-drag-area');
-        const failuresSpan = document.getElementById('consonant-failures');
-        const nextButton = document.getElementById('start-test-b-practice-button');
-        dropArea.innerHTML = '';
+        const dropArea = document.getElementById('consonant-drop-area');
         dragArea.innerHTML = '';
-        failuresSpan.textContent = '0';
-        nextButton.classList.add('hidden');
-        userResults.consonant_check_failures = 0;
+        dropArea.innerHTML = '';
 
-        const missingConsonants = [];
-        KOREAN_CONSONANTS.forEach((c, i) => {
-            const isEven = (i + 1) % 2 === 0;
-            if (isEven) {
-                const dropZone = document.createElement('div');
-                dropZone.className = 'drop-zone flex justify-center items-center rounded-lg';
-                dropZone.dataset.correct = c;
-                dropArea.appendChild(dropZone);
-                missingConsonants.push(c);
-            } else {
-                const filledZone = document.createElement('div');
-                filledZone.className = 'w-[60px] h-[60px] flex justify-center items-center bg-slate-200 rounded-lg text-xl font-bold';
-                filledZone.textContent = c;
-                dropArea.appendChild(filledZone);
-            }
+        shuffledConsonants.forEach(consonant => {
+            const box = document.createElement('div');
+            box.className = 'consonant-box flex justify-center items-center bg-white rounded-lg text-xl font-bold cursor-pointer';
+            box.textContent = consonant;
+            box.dataset.value = consonant;
+            box.addEventListener('click', handleConsonantClick);
+            dragArea.appendChild(box);
         });
 
-        missingConsonants.sort(() => Math.random() - 0.5);
-        missingConsonants.forEach(c => {
-            const card = document.createElement('div');
-            card.className = 'consonant-card draggable flex justify-center items-center bg-white rounded-lg text-xl font-bold';
-            card.textContent = c;
-            card.draggable = true;
-            card.dataset.value = c;
-            dragArea.appendChild(card);
-        });
+        for (let i = 0; i < 14; i++) {
+            const box = document.createElement('div');
+            box.className = 'consonant-placeholder flex justify-center items-center bg-slate-200 rounded-lg text-xl font-bold';
+            dropArea.appendChild(box);
+        }
 
-        let draggedItem = null;
-
-        dragArea.addEventListener('dragstart', e => {
-            if(e.target.classList.contains('draggable')) {
-                draggedItem = e.target;
-                setTimeout(() => e.target.classList.add('opacity-50'), 0);
-            }
-        });
-        dragArea.addEventListener('dragend', e => {
-             if(e.target.classList.contains('draggable')) {
-                draggedItem.classList.remove('opacity-50');
-                draggedItem = null;
-             }
-        });
-        dropArea.addEventListener('dragover', e => {
-            e.preventDefault();
-            if (e.target.classList.contains('drop-zone') && !e.target.hasChildNodes()) {
-                e.target.classList.add('over');
-            }
-        });
-        dropArea.addEventListener('dragleave', e => {
-            if (e.target.classList.contains('drop-zone')) {
-                e.target.classList.remove('over');
-            }
-        });
-        dropArea.addEventListener('drop', e => {
-            e.preventDefault();
-            if (e.target.classList.contains('drop-zone') && !e.target.hasChildNodes()) {
-                e.target.classList.remove('over');
-                if (e.target.dataset.correct === draggedItem.dataset.value) {
-                    e.target.appendChild(draggedItem);
-                    draggedItem.draggable = false;
-                    draggedItem.classList.remove('draggable');
-                    draggedItem.style.cursor = 'default';
-                    
-                    const dropZones = dropArea.querySelectorAll('.drop-zone');
-                    const isComplete = Array.from(dropZones).every(zone => zone.hasChildNodes());
-                    if (isComplete) {
-                        nextButton.classList.remove('hidden');
-                    }
-                } else {
-                    userResults.consonant_check_failures++;
-                    failuresSpan.textContent = userResults.consonant_check_failures;
-                    draggedItem.classList.add('error');
-                    setTimeout(() => draggedItem.classList.remove('error'), 500);
-                }
-            }
-        });
+        consonantCheckStartTime = Date.now();
     }
-    
+
+    function handleConsonantClick(event) {
+        const clickedConsonant = event.target;
+        const expectedConsonant = consonantSequence.at(currentConsonantIndex);
+
+        if (clickedConsonant.dataset.value === expectedConsonant) {
+            const dropArea = document.getElementById('consonant-drop-area');
+            const placeholder = dropArea.children.item(currentConsonantIndex);
+            placeholder.textContent = clickedConsonant.dataset.value;
+            clickedConsonant.removeEventListener('click', handleConsonantClick);
+            clickedConsonant.remove();
+            currentConsonantIndex++;
+
+            if (currentConsonantIndex === consonantSequence.length) {
+                const consonantCheckEndTime = Date.now();
+                userResults.consonant_check_start_time = consonantCheckStartTime / 1000;
+                userResults.consonant_check_end_time = consonantCheckEndTime / 1000;
+                document.getElementById('start-test-b-practice-button').disabled = false;
+            }
+        } else {
+            userResults.consonant_check_failures++;
+            clickedConsonant.classList.add('incorrect');
+            setTimeout(() => clickedConsonant.classList.remove('incorrect'), 500);
+        }
+    }
+
     // --- 단계별 진행 함수 ---
     function runTestAPractice() {
         currentStage = 'A_PRACTICE';
@@ -245,10 +215,11 @@ document.addEventListener('DOMContentLoaded', function() {
             runConsonantCheck();
         });
     }
-    
+
     function runConsonantCheck() {
         currentStage = 'CONSONANT_CHECK';
         showScreen('consonant-check-screen');
+        document.getElementById('start-test-b-practice-button').disabled = true;
         setupConsonantCheck();
     }
 
@@ -258,13 +229,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const items = [];
         for (let i = 0; i < 4; i++) {
             items.push(i + 1);
-            items.push(KOREAN_CONSONANTS[i]);
+            items.push(consonantSequence); // 수정: 실제 자음 배열 대신 변수 사용
         }
-        currentTest = new TrailMakingTest('test-b-practice-area', items, () => {
+        const flattenedItems = items.flat(); // 배열 평탄화
+        currentTest = new TrailMakingTest('test-b-practice-area', flattenedItems, () => {
             document.getElementById('start-test-b-button').disabled = false;
         });
         document.getElementById('start-test-b-button').disabled = true;
     }
+
 
     function runTestBMain() {
         currentStage = 'B_MAIN';
@@ -272,9 +245,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const items = [];
         for (let i = 0; i < 14; i++) {
             items.push(i + 1);
-            items.push(KOREAN_CONSONANTS[i]);
+            items.push(consonantSequence); // 수정: 실제 자음 배열 대신 변수 사용
         }
-        currentTest = new TrailMakingTest('test-b-main-area', items, (duration, errors) => {
+        const flattenedItems = items.flat(); // 배열 평탄화
+        currentTest = new TrailMakingTest('test-b-main-area', flattenedItems, (duration, errors) => {
             userResults.testB_time = parseFloat(duration.toFixed(2));
             userResults.testB_errors = errors;
             submitResults();
@@ -305,10 +279,12 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('결과 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
         }
     }
-    
+
     // --- 이벤트 리스너 ---
     document.getElementById('start-button').addEventListener('click', runTestAPractice);
     document.getElementById('start-test-a-button').addEventListener('click', runTestAMain);
+
+    // Test B 연습 시작 버튼에 대한 이벤트 리스너는 consonant check 완료 후 활성화됩니다.
     document.getElementById('start-test-b-practice-button').addEventListener('click', runTestBPractice);
     document.getElementById('start-test-b-button').addEventListener('click', runTestBMain);
 
