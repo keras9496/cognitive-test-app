@@ -19,6 +19,7 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
+        .trail-details p { margin: 5px 0; padding-left: 15px; }
     </style>
 </head>
 <body>
@@ -42,6 +43,7 @@
                             검사 유형: 
                             {% if test.test_type == 'sequence' %}<strong style="color: #007bff;">순서 기억 검사</strong>
                             {% elif test.test_type == 'card_matching' %}<strong style="color: #28a745;">카드 짝 맞추기 검사</strong>
+                            {% elif test.test_type == 'trail_making' %}<strong style="color: #6f42c1;">트레일 메이킹 테스트</strong>
                             {% else %}<strong>{{ test.test_type }}</strong>
                             {% endif %}
                         </h3>
@@ -81,6 +83,18 @@
                                 </table>
                             </div>
                             {% endfor %}
+                        {% endif %}
+
+                        {# #}
+                        {% if test.test_type == 'trail_making' and test.result %}
+                            <h4>상세 기록:</h4>
+                            <div class="trail-details">
+                                <p><strong>A형 검사 소요 시간:</strong> {{ test.result.testA_time }}초</p>
+                                <p><strong>A형 검사 오류:</strong> {{ test.result.testA_errors }}회</p>
+                                <p><strong>B형 검사 소요 시간:</strong> {{ test.result.testB_time }}초</p>
+                                <p><strong>B형 검사 오류:</strong> {{ test.result.testB_errors }}회</p>
+                                <p><strong>자음 순서 맞추기 실패:</strong> {{ test.result.consonant_check_failures }}회</p>
+                            </div>
                         {% endif %}
                     </div>
                     {% endfor %}
