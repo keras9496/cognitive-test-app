@@ -133,7 +133,7 @@
     </div>
 
     <!-- 결과 전송을 위한 Form -->
-    <form id="test-form" method="post" action="{{ url_for('submit') }}" class="hidden">
+    <form id="test-form" method="post" action="{{ url_for('submit_stroop_result') }}" class="hidden">
         <input type="hidden" name="stroop_test_results" id="stroop_test_results">
         <input type="hidden" name="next_page" value="finish">
     </form>
