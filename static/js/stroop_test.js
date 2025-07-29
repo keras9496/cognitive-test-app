@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const correctCountDisplay = document.getElementById('correct-count');
     const trialCounterDisplay = document.getElementById('trial-counter');
     const feedbackArea = document.getElementById('feedback-area');
-    
+
     const prePracticeInstructionArea = document.getElementById('pre-practice-instruction-area');
     const practiceInstructionArea = document.getElementById('practice-instruction-area');
     const practiceStimulusWord = document.getElementById('practice-stimulus-word');
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const practiceFeedbackArea = document.getElementById('practice-feedback-area');
     const practiceFailText = document.getElementById('practice-fail-text');
     const preRoundInstructionArea = document.getElementById('pre-round-instruction-area');
-    
+
     const round1ResultsDisplay = document.getElementById('round-1-results');
     const finalResultsDisplay = document.getElementById('final-results');
 
@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const PRACTICE_TRIAL_COUNT = 4;
     const MAIN_GAME_START_DELAY = 2000;
     const STIMULUS_DURATION = 500;
-    const RESPONSE_WINDOW = 2000;
+    const RESPONSE_WINDOW = 1000; // 응답 시간을 1초로 수정
     const INTER_TRIAL_INTERVAL = 1200;
     const TOTAL_TRIALS_PER_ROUND = 30;
     const TARGET_RATIO = 0.3;
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let practiceTrials = [];
     let currentPracticeIndex = 0;
     let mainTrialIndex = 0;
-    
+
     // --- 데이터 수집을 위한 변수들 ---
     let allPracticeTrials = []; // 전체 연습 시행 데이터
     let allTestTrials = [];     // 전체 본 검사 시행 데이터
@@ -71,23 +71,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 유틸리티 및 문항 생성 ---
     function shuffleArray(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } }
     function getRandomElement(arr, exclude = null) { let el; do { el = arr[Math.floor(Math.random() * arr.length)]; } while (exclude && el.name === exclude.name); return el; }
-    
+
     function generateTrials(round) {
         const newTrials = [];
         const targetCount = Math.round(TOTAL_TRIALS_PER_ROUND * TARGET_RATIO);
         const highConflictCount = Math.round(TOTAL_TRIALS_PER_ROUND * HIGH_CONFLICT_RATIO);
         const otherNonTargetCount = TOTAL_TRIALS_PER_ROUND - targetCount - highConflictCount;
-        
+
         for (let i = 0; i < targetCount; i++) {
             let word, color;
-            if (round === 1) { color = targetColor; word = getRandomElement(COLORS, color); } 
+            if (round === 1) { color = targetColor; word = getRandomElement(COLORS, color); }
             else { word = targetColor; color = getRandomElement(COLORS, word); }
             newTrials.push({ word: word.kor, color: color.code, isTarget: true });
         }
 
         for (let i = 0; i < highConflictCount; i++) {
             let word, color;
-            if (round === 1) { word = targetColor; color = getRandomElement(COLORS, word); } 
+            if (round === 1) { word = targetColor; color = getRandomElement(COLORS, word); }
             else { color = targetColor; word = getRandomElement(COLORS, color); }
             newTrials.push({ word: word.kor, color: color.code, isTarget: false });
         }
@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetColor = getRandomElement(COLORS);
         hideAllScreens();
         prePracticeScreen.classList.remove('hidden');
-        const instructionText = roundNum === 1 
+        const instructionText = roundNum === 1
             ? `글자의 <strong class="font-bold">색상</strong>이 <strong class="${targetColor.code}">${targetColor.kor}</strong>일 때만 '일치'를 누르세요.`
             : `글자의 <strong class="font-bold">의미</strong>가 <strong class="${targetColor.code}">${targetColor.kor}</strong>일 때만 '일치'를 누르세요.`;
         prePracticeInstructionArea.innerHTML = instructionText;
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
         practiceStimulusWord.textContent = trial.word;
         practiceStimulusWord.className = `text-8xl font-black ${trial.color}`;
         waitingForInput = true;
-        startTimerBar();
+        startPracticeTimerBar();
         practiceResponseTimeout = setTimeout(() => handlePracticeResponse(false), PRACTICE_RESPONSE_WINDOW);
     }
 
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const trial = practiceTrials[currentPracticeIndex];
         const correct = (trial.isTarget === buttonPressed);
-        
+
         // 연습 데이터 기록
         allPracticeTrials.push({
             round: currentRound,
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function startTimerBar() {
+    function startPracticeTimerBar() {
         practiceTimerBar.style.transition = 'none';
         practiceTimerBar.style.width = '100%';
         setTimeout(() => {
@@ -228,6 +228,19 @@ document.addEventListener('DOMContentLoaded', () => {
         preRoundInstructionArea.innerHTML = prePracticeInstructionArea.innerHTML;
     }
 
+    // --- 본 검사 타이머 바 시작 함수 (신규 추가) ---
+    function startMainTimerBar() {
+        const timerBarInner = document.getElementById('main-timer-bar-inner');
+        if (timerBarInner) {
+            timerBarInner.style.transition = 'none';
+            timerBarInner.style.width = '100%';
+            setTimeout(() => {
+                timerBarInner.style.transition = `width ${RESPONSE_WINDOW / 1000}s linear`;
+                timerBarInner.style.width = '0%';
+            }, 50);
+        }
+    }
+
     function startRound() {
         mainTrialIndex = 0;
         correctCount = 0;
@@ -236,8 +249,20 @@ document.addEventListener('DOMContentLoaded', () => {
         updateScoreAndTrial();
         instructionArea.innerHTML = preRoundInstructionArea.innerHTML;
         hideAllScreens();
+
+        // --- 본 검사 타이머 바 DOM 생성 (신규 추가) ---
+        const infoArea = document.getElementById('info-area');
+        let mainTimerBar = document.getElementById('main-timer-bar');
+        if (!mainTimerBar) {
+            mainTimerBar = document.createElement('div');
+            mainTimerBar.className = 'w-full bg-gray-200 rounded-full h-2.5 my-4';
+            mainTimerBar.id = 'main-timer-bar';
+            mainTimerBar.innerHTML = `<div id="main-timer-bar-inner" class="bg-green-600 h-2.5 rounded-full" style="width: 100%;"></div>`;
+            infoArea.parentNode.insertBefore(mainTimerBar, infoArea);
+        }
+
         testScreen.classList.remove('hidden');
-        
+
         stimulusWord.textContent = "준비...";
         stimulusWord.className = "text-6xl font-bold text-gray-500";
 
@@ -245,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
             nextTrial();
         }, MAIN_GAME_START_DELAY);
     }
-    
+
     function nextTrial() {
         if (mainTrialIndex >= TOTAL_TRIALS_PER_ROUND) {
             endRound();
@@ -259,6 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         waitingForInput = true;
         startTime = Date.now();
+        startMainTimerBar(); // --- 본 검사 타이머 바 시작 호출 (신규 추가) ---
         responseTimeout = setTimeout(() => handleMainResponse(false), RESPONSE_WINDOW);
     }
 
@@ -270,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const trial = trials[mainTrialIndex];
         const correct = (trial.isTarget === buttonPressed);
         const responseTime = Date.now() - startTime;
-        
+
         // 본 검사 데이터 기록
         allTestTrials.push({
             round: currentRound,
@@ -289,12 +315,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 reactionTimes.push(responseTime / 1000);
             }
         }
-        
+
         mainTrialIndex++;
         updateScoreAndTrial();
         setTimeout(nextTrial, INTER_TRIAL_INTERVAL);
     }
-    
+
     function showFeedback(text, colorClass) {
         feedbackArea.textContent = text;
         feedbackArea.className = `mt-4 h-6 text-xl font-bold ${colorClass}`;
@@ -363,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             finalResultsDisplay.innerHTML += '<p class="text-red-500 font-bold mt-4">결과 저장에 실패했습니다. 관리자에게 문의하세요.</p>';
         }
     }
-    
+
     function hideAllScreens() {
         startScreen.classList.add('hidden');
         prePracticeScreen.classList.add('hidden');
