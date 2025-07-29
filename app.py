@@ -440,9 +440,31 @@ def finish():
         # 스트룹 테스트 후에는 최종 종료
         return redirect(url_for('final_finish'))
 
-@app.route('/final_finish')
-def final_finish():
-    return render_template('finish.html')
+@app.route('/finish')
+def finish():
+    # 현재 테스트 흐름을 세션에서 가져옵니다.
+    current_flow = session.get('current_test_flow')
+    print(f"finish 엔드포인트 접근 - 현재 플로우: {current_flow}")
+
+    if current_flow == 'sequence':
+        # 다음 테스트인 'card'로 상태를 변경합니다.
+        session['current_test_flow'] = 'card'
+        # 이 프로젝트의 실제 흐름에서는 이 분기가 바로 사용되지는 않지만,
+        # start_test의 로직에 따라 다음 테스트가 card가 맞습니다.
+        return redirect(url_for('card_test'))
+
+    elif current_flow == 'card':
+        # 카드 테스트가 끝났으므로, 다음 테스트인 'stroop'으로 상태를 변경합니다.
+        session['current_test_flow'] = 'stroop'
+        return redirect(url_for('stroop_test'))
+
+    elif current_flow == 'stroop':
+        # 스트룹 테스트가 끝났으므로, 모든 과정이 완료된 페이지로 이동합니다.
+        return redirect(url_for('final_finish'))
+        
+    else:
+        # 만약 세션에 유효한 테스트 흐름 정보가 없다면, 안전하게 첫 페이지로 보냅니다.
+        return redirect(url_for('index'))
 
 @app.route('/results')
 def results():
