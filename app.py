@@ -429,19 +429,6 @@ def process_stroop_result(raw_data):
 
 @app.route('/finish')
 def finish():
-    # [수정] 어떤 테스트를 했는지에 따라 분기
-    if session.get('current_test_flow') == 'sequence':
-        # 순서 기억 검사 후에는 트레일 메이킹으로
-        return redirect(url_for('trail_making_test'))
-    elif session.get('current_test_flow') == 'card':
-        # 카드 짝 맞추기 후에는 스트룹 테스트로
-        return redirect(url_for('stroop_test'))
-    else:
-        # 스트룹 테스트 후에는 최종 종료
-        return redirect(url_for('final_finish'))
-
-@app.route('/finish')
-def finish():
     # 현재 테스트 흐름을 세션에서 가져옵니다.
     current_flow = session.get('current_test_flow')
     print(f"finish 엔드포인트 접근 - 현재 플로우: {current_flow}")
@@ -465,6 +452,10 @@ def finish():
     else:
         # 만약 세션에 유효한 테스트 흐름 정보가 없다면, 안전하게 첫 페이지로 보냅니다.
         return redirect(url_for('index'))
+
+@app.route('/final_finish')
+def final_finish():
+    return render_template('finish.html')
 
 @app.route('/results')
 def results():
