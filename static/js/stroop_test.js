@@ -402,10 +402,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('결과 저장 성공:', result);
 
-            // 4. 최종 완료 페이지로 이동
+            // --- 로직 수정: 서버에서 받은 next_url로 이동 ---
             finalResultsDisplay.innerHTML += '<p class="text-green-500 font-bold mt-4">결과가 성공적으로 저장되었습니다. 곧 다음 페이지로 이동합니다.</p>';
             setTimeout(() => {
-                window.location.href = '/finish';
+                if (result.next_url) {
+                    window.location.href = result.next_url;
+                } else {
+                    window.location.href = '/finish'; // Fallback
+                }
             }, 2000);
 
         } catch (error) {

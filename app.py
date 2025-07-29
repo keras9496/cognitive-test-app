@@ -129,22 +129,21 @@ def start_test():
         db['users'].append(user_entry)
         save_database(db)
     
-    # [수정] 핵심 테스트(sequence, card_matching, stroop)의 개수를 세어 다음 검사를 결정
-    primary_tests = [t for t in user_entry.get('tests', []) if t.get('test_type') in ['sequence', 'card_matching', 'stroop']]
-    primary_test_count = len(primary_tests)
+    # --- 로직 수정 ---
+    # 순서 기억 검사와 카드 짝 맞추기 검사의 완료 횟수를 센다.
+    sequence_test_count = sum(1 for test in user_entry.get('tests', []) if test.get('test_type') == 'sequence')
+    card_test_count = sum(1 for test in user_entry.get('tests', []) if test.get('test_type') == 'card_matching')
+
+    total_primary_sessions = sequence_test_count + card_test_count
     
-    if primary_test_count % 3 == 0:
-        # 순서 기억 검사 회차
+    # 세션 횟수가 짝수이면 '순서 기억 -> 트레일 메이킹' 진행
+    if total_primary_sessions % 2 == 0:
         session['current_test_flow'] = 'sequence'
         return redirect(url_for('practice'))
-    elif primary_test_count % 3 == 1:
-        # 카드 짝 맞추기 검사 회차
+    # 세션 횟수가 홀수이면 '카드 짝 맞추기 -> 스트룹' 진행
+    else:
         session['current_test_flow'] = 'card'
         return redirect(url_for('card_test'))
-    else:
-        # 스트룹 검사 회차
-        session['current_test_flow'] = 'stroop'
-        return redirect(url_for('stroop_test'))
 
 
 @app.route('/practice')
@@ -341,7 +340,6 @@ def submit_stroop_result():
         return jsonify({"error": "결과 데이터가 없습니다."}), 400
     
     try:
-        # 스트룹 테스트 결과 포맷 검증 및 처리
         processed_result = process_stroop_result(result_data)
         
         db = load_database()
@@ -362,7 +360,12 @@ def submit_stroop_result():
             return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
         
         save_database(db)
-        return jsonify({"status": "success", "message": "스트룹 테스트 결과가 성공적으로 저장되었습니다."})
+        # --- 로직 수정: 최종 완료 페이지 URL 반환 ---
+        return jsonify({
+            "status": "success", 
+            "message": "스트룹 테스트 결과가 성공적으로 저장되었습니다.",
+            "next_url": url_for('final_finish') # 최종 종료 페이지로 이동
+        })
         
     except Exception as e:
         print(f"스트룹 테스트 결과 저장 중 오류: {str(e)}")
@@ -470,18 +473,19 @@ def process_stroop_result(raw_data):
 
 @app.route('/finish')
 def finish():
-    # [수정] 어떤 테스트를 했는지에 따라 분기
     current_flow = session.get('current_test_flow')
     print(f"finish 엔드포인트 접근 - 현재 플로우: {current_flow}")
     
     if current_flow == 'sequence':
-        # 순서 기억 검사 후에는 트레일 메이킹으로
+        # 순서 기억 검사 후에는 트레일 메이킹으로 이동
+        session['current_test_flow'] = 'trail_making'
         return redirect(url_for('trail_making_test'))
     elif current_flow == 'card':
-        # 카드 짝 맞추기 후에는 스트룹 테스트로
+        # 카드 짝 맞추기 후에는 스트룹 테스트로 이동
+        session['current_test_flow'] = 'stroop'
         return redirect(url_for('stroop_test'))
     else:
-        # 스트룹 테스트 후에는 최종 종료
+        # 그 외의 경우(trail_making, stroop 완료 후) 최종 종료
         return redirect(url_for('final_finish'))
 
 @app.route('/final_finish')
