@@ -317,21 +317,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showFinalResults() {
-        const r1 = roundResults[1];
-        const r2 = roundResults[2];
-        
-        // 각 라운드별 결과를 form의 input에 할당
-        document.getElementById('stroop_round1_accuracy').value = r1.accuracy.toFixed(1);
-        document.getElementById('stroop_round1_avg_rt').value = r1.avgReactionTime;
-        document.getElementById('stroop_round2_accuracy').value = r2.accuracy.toFixed(1);
-        document.getElementById('stroop_round2_avg_rt').value = r2.avgReactionTime;
-        
-        // 상세 데이터도 JSON 문자열로 변환하여 저장 (선택 사항)
-        // const detailedResults = { practice: allPracticeTrials, test: allTestTrials, failures: practiceFailures };
-        // document.getElementById('stroop_detailed_results').value = JSON.stringify(detailedResults);
+    async function showFinalResults() {
+        // 1. 화면에 결과 전송 중 메시지 표시
+        hideAllScreens();
+        resultsScreen.classList.remove('hidden');
+        finalResultsDisplay.innerHTML = `
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">테스트 종료</h2>
+            <p class="text-xl text-gray-700">결과를 서버로 전송 중입니다. 잠시만 기다려주세요...</p>
+        `;
 
-        document.getElementById('test-form').submit();
+        // 2. 서버에 전송할 최종 데이터 객체 생성
+        const finalResultData = {
+            practice_trials: allPracticeTrials,
+            test_trials: allTestTrials,
+            summary: {
+                round1: roundResults[1],
+                round2: roundResults[2],
+                practice_failures: practiceFailures
+            }
+        };
+
+        // 3. fetch를 사용하여 서버에 결과 전송
+        try {
+            const response = await fetch('/api/submit-stroop-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(finalResultData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log('결과 저장 성공:', result);
+
+            // 4. 최종 완료 페이지로 이동
+            finalResultsDisplay.innerHTML += '<p class="text-green-500 font-bold mt-4">결과가 성공적으로 저장되었습니다. 곧 다음 페이지로 이동합니다.</p>';
+            setTimeout(() => {
+                window.location.href = '/finish';
+            }, 2000);
+
+        } catch (error) {
+            console.error('결과 전송 실패:', error);
+            finalResultsDisplay.innerHTML += '<p class="text-red-500 font-bold mt-4">결과 저장에 실패했습니다. 관리자에게 문의하세요.</p>';
+        }
     }
     
     function hideAllScreens() {
