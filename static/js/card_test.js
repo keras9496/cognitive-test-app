@@ -175,19 +175,23 @@ async function finishGameAndSubmit() {
         });
 
         if (!response.ok) {
-            throw new Error('서버 응답 오류');
+            throw new Error(`서버 응답 오류: ${response.status}`);
         }
 
         const result = await response.json();
         statusMessage.textContent = '결과가 성공적으로 저장되었습니다!';
         
+        // [수정] 서버에서 반환된 next_url 사용 또는 기본 finish 경로 사용
+        const nextUrl = result.next_url || '/finish';
+        
         setTimeout(() => {
-            window.location.href = '/finish';
+            window.location.href = nextUrl;
         }, 2000);
 
     } catch (error) {
         console.error('결과 전송 실패:', error);
         statusMessage.textContent = '결과 저장에 실패했습니다. 다시 시도해주세요.';
         startBtn.disabled = false;
+        startBtn.textContent = '다시 시도';
     }
 }
