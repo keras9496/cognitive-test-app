@@ -129,18 +129,22 @@ def start_test():
         db['users'].append(user_entry)
         save_database(db)
     
-    # [수정] 핵심 테스트(sequence, card_matching)의 개수를 세어 다음 검사를 결정
-    primary_tests = [t for t in user_entry.get('tests', []) if t.get('test_type') in ['sequence', 'card_matching']]
+    # [수정] 핵심 테스트(sequence, card_matching, stroop)의 개수를 세어 다음 검사를 결정
+    primary_tests = [t for t in user_entry.get('tests', []) if t.get('test_type') in ['sequence', 'card_matching', 'stroop']]
     primary_test_count = len(primary_tests)
     
-    if primary_test_count % 2 == 0:
+    if primary_test_count % 3 == 0:
         # 순서 기억 검사 회차
-        session['current_test_flow'] = 'sequence' # 플로우 구분을 위한 세션 변수
+        session['current_test_flow'] = 'sequence'
         return redirect(url_for('practice'))
-    else:
+    elif primary_test_count % 3 == 1:
         # 카드 짝 맞추기 검사 회차
-        session['current_test_flow'] = 'card' # 플로우 구분을 위한 세션 변수
+        session['current_test_flow'] = 'card'
         return redirect(url_for('card_test'))
+    else:
+        # 스트룹 검사 회차
+        session['current_test_flow'] = 'stroop'
+        return redirect(url_for('stroop_test'))
 
 
 @app.route('/practice')
@@ -290,8 +294,138 @@ def submit_card_result():
             break
     if not user_found: return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
     save_database(db)
-    # [중요] 카드 테스트는 끝나면 바로 최종 종료 페이지로 가야 하므로, JS에서 사용할 URL을 전달
+    # [수정] 카드 테스트 후에는 스트룹 테스트로 이동
     return jsonify({"status": "success", "message": "결과가 성공적으로 저장되었습니다."})
+
+# 스트룹 테스트 관련 라우트 추가
+@app.route('/stroop-test')
+def stroop_test():
+    if 'user_info' not in session:
+        return redirect(url_for('index'))
+    return render_template('stroop_test.html')
+
+@app.route('/api/submit-stroop-result', methods=['POST'])
+def submit_stroop_result():
+    if 'user_info' not in session: 
+        return jsonify({"error": "사용자 정보가 없습니다."}), 401
+    
+    result_data = request.get_json()
+    if not result_data: 
+        return jsonify({"error": "결과 데이터가 없습니다."}), 400
+    
+    # 스트룹 테스트 결과 포맷 검증 및 처리
+    processed_result = process_stroop_result(result_data)
+    
+    db = load_database()
+    user_info = session.get('user_info')
+    user_found = False
+    
+    for user in db['users']:
+        if user.get('name') == user_info.get('name') and user.get('age') == user_info.get('age'):
+            user.setdefault('tests', []).append({
+                "test_type": "stroop",
+                "timestamp": datetime.now().isoformat(),
+                "result": processed_result
+            })
+            user_found = True
+            break
+    
+    if not user_found: 
+        return jsonify({"error": "데이터베이스에서 사용자를 찾을 수 없습니다."}), 404
+    
+    save_database(db)
+    return jsonify({"status": "success", "message": "스트룹 테스트 결과가 성공적으로 저장되었습니다."})
+
+def process_stroop_result(raw_data):
+    """
+    스트룹 테스트 원본 데이터를 분석하여 정리된 결과 포맷으로 변환
+    
+    예상 입력 포맷:
+    {
+        "practice_trials": [
+            {"word": "빨강", "color": "blue", "user_response": true/false/null, "response_time": 1200, "correct_answer": false},
+            ...
+        ],
+        "test_trials": [
+            {"word": "파랑", "color": "red", "user_response": true/false/null, "response_time": 800, "correct_answer": false},
+            ...
+        ]
+    }
+    """
+    
+    # 연습 문항 분석
+    practice_trials = raw_data.get('practice_trials', [])
+    practice_failures = 0
+    
+    for trial in practice_trials:
+        user_response = trial.get('user_response')
+        correct_answer = trial.get('correct_answer')
+        
+        # 연습에서 실패한 경우 카운트 (정답과 다르게 응답한 경우)
+        if user_response != correct_answer:
+            practice_failures += 1
+    
+    # 본 검사 분석
+    test_trials = raw_data.get('test_trials', [])
+    total_trials = len(test_trials)
+    
+    if total_trials > 0:
+        # 평균 응답 시간 계산
+        total_response_time = sum(trial.get('response_time', 0) for trial in test_trials)
+        avg_response_time = total_response_time / total_trials
+        
+        # 오답율 계산
+        incorrect_responses = 0
+        no_response_errors = 0  # 정답인데 미입력
+        false_positive_errors = 0  # 오답인데 입력
+        
+        for trial in test_trials:
+            user_response = trial.get('user_response')
+            correct_answer = trial.get('correct_answer')
+            
+            if user_response != correct_answer:
+                incorrect_responses += 1
+                
+                # 세부 오답 유형 분류
+                if correct_answer and (user_response is False or user_response is None):
+                    no_response_errors += 1  # 정답인데 미입력
+                elif not correct_answer and user_response:
+                    false_positive_errors += 1  # 오답인데 입력
+        
+        error_rate = (incorrect_responses / total_trials) * 100
+        no_response_error_rate = (no_response_errors / total_trials) * 100
+        false_positive_error_rate = (false_positive_errors / total_trials) * 100
+    else:
+        avg_response_time = 0
+        error_rate = 0
+        no_response_error_rate = 0
+        false_positive_error_rate = 0
+        incorrect_responses = 0
+        no_response_errors = 0
+        false_positive_errors = 0
+    
+    # 정리된 결과 포맷
+    processed_result = {
+        "summary": {
+            "practice_failures": practice_failures,
+            "total_practice_trials": len(practice_trials),
+            "total_test_trials": total_trials,
+            "avg_response_time_ms": round(avg_response_time, 2),
+            "overall_error_rate_percent": round(error_rate, 2),
+            "no_response_error_rate_percent": round(no_response_error_rate, 2),
+            "false_positive_error_rate_percent": round(false_positive_error_rate, 2),
+            "total_incorrect": incorrect_responses,
+            "no_response_errors": no_response_errors,
+            "false_positive_errors": false_positive_errors
+        },
+        "detailed_data": {
+            "practice_trials": practice_trials,
+            "test_trials": test_trials
+        },
+        "raw_data": raw_data  # 원본 데이터도 보존
+    }
+    
+    return processed_result
 
 @app.route('/finish')
 def finish():
@@ -299,8 +433,11 @@ def finish():
     if session.get('current_test_flow') == 'sequence':
         # 순서 기억 검사 후에는 트레일 메이킹으로
         return redirect(url_for('trail_making_test'))
+    elif session.get('current_test_flow') == 'card':
+        # 카드 짝 맞추기 후에는 스트룹 테스트로
+        return redirect(url_for('stroop_test'))
     else:
-        # 카드 짝 맞추기 후에는 바로 최종 종료
+        # 스트룹 테스트 후에는 최종 종료
         return redirect(url_for('final_finish'))
 
 @app.route('/final_finish')

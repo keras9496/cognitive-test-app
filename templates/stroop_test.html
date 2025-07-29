@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스트룹 테스트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .btn-active-effect {
+            transition: transform 0.1s ease;
+        }
+        .btn-active-effect:active {
+            transform: scale(0.97);
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div id="app-container" class="w-full max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-10 text-center">
+
+        <!-- 시작 화면 -->
+        <div id="start-screen">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">스트룹 테스트</h1>
+            <h2 class="text-2xl font-semibold text-gray-600 mb-8">(반응 억제 검사)</h2>
+            <div class="text-left bg-gray-50 p-6 rounded-lg mb-8 space-y-4 text-gray-700">
+                <p><strong>규칙:</strong> 화면에 제시된 조건과 글자가 일치할 경우에만 '일치' 버튼을 누르세요.</p>
+                <p class="font-bold text-red-600">※ 조건과 일치하지 않으면, 아무 버튼도 누르지 말고 기다려야 합니다.</p>
+                <p>각 라운드 시작 전, 규칙을 완벽히 익히기 위한 <strong class="text-blue-600">연습 문제</strong>가 제시됩니다.</p>
+            </div>
+            <button id="start-button" class="w-full bg-blue-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 btn-active-effect">
+                테스트 시작하기
+            </button>
+        </div>
+        
+        <!-- 연습 시작 전 화면 -->
+        <div id="pre-practice-screen" class="hidden">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">연습 준비</h2>
+            <p class="text-xl text-gray-700 mb-6">아래 규칙을 숙지하고 연습을 시작하세요.</p>
+            <div id="pre-practice-instruction-area" class="bg-blue-50 text-blue-800 border-l-4 border-blue-500 p-6 rounded-md mb-8 text-xl font-semibold"></div>
+            <button id="start-practice-button" class="w-full bg-green-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 btn-active-effect">
+                연습 시작하기
+            </button>
+        </div>
+
+        <!-- 연습 화면 -->
+        <div id="practice-screen" class="hidden">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">연습 라운드</h2>
+            <div id="practice-instruction-area" class="bg-blue-50 text-blue-800 border-l-4 border-blue-500 p-4 rounded-md mb-6 text-xl font-semibold"></div>
+            <div id="practice-stimulus-area" class="h-48 flex items-center justify-center">
+                <span id="practice-stimulus-word" class="text-8xl font-black"></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 my-4 mt-8">
+                <div id="practice-timer-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-100 ease-linear" style="width: 100%"></div>
+            </div>
+            <button id="practice-response-button" class="w-full bg-green-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 btn-active-effect">
+                일치
+            </button>
+            <div id="practice-feedback-area" class="mt-4 h-12 text-xl font-bold flex items-center justify-center"></div>
+        </div>
+        
+        <!-- 본 게임 전 전환 화면 -->
+        <div id="pre-round-screen" class="hidden">
+            <h2 class="text-3xl font-bold text-green-600 mb-4">연습 성공!</h2>
+            <p class="text-xl text-gray-700 mb-6">이제 본 게임을 시작합니다.</p>
+            <div id="pre-round-instruction-area" class="bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500 p-6 rounded-md mb-8 text-xl font-semibold"></div>
+            <button id="start-main-game-button" class="w-full bg-purple-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 btn-active-effect">
+                시작하기
+            </button>
+        </div>
+
+        <!-- 테스트 진행 화면 -->
+        <div id="test-screen" class="hidden">
+            <div id="instruction-area" class="bg-yellow-100 text-yellow-800 border-l-4 border-yellow-500 p-4 rounded-md mb-8 text-xl font-semibold"></div>
+            <div id="stimulus-area" class="h-48 flex items-center justify-center">
+                <span id="stimulus-word" class="text-8xl font-black"></span>
+            </div>
+            <div id="info-area" class="flex justify-between items-center text-lg text-gray-600 my-6 px-2">
+                <div><span>정답 수: </span><span id="correct-count" class="font-bold">0</span></div>
+                <div><span>남은 문항: </span><span id="trial-counter" class="font-bold">30</span></div>
+            </div>
+            <button id="response-button" class="w-full bg-green-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 btn-active-effect">
+                일치
+            </button>
+            <div id="feedback-area" class="mt-4 h-6 text-xl font-bold"></div>
+        </div>
+        
+        <!-- 라운드 간 전환 화면 -->
+        <div id="between-rounds-screen" class="hidden">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">1라운드 종료</h2>
+            <div id="round-1-results" class="bg-gray-50 p-6 rounded-lg mb-8 text-lg"></div>
+            <p class="text-gray-700 mb-8">이제 2라운드를 준비하세요. 규칙이 변경됩니다.</p>
+            <button id="next-round-button" class="w-full bg-purple-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 btn-active-effect">
+                2라운드 연습 시작하기
+            </button>
+        </div>
+
+        <!-- 결과 화면 (테스트 중에는 보이지 않음) -->
+        <div id="results-screen" class="hidden">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">테스트 종료</h2>
+            <div id="final-results" class="space-y-6 text-left"></div>
+            <button id="restart-button" class="mt-10 w-full bg-gray-600 text-white font-bold py-4 px-6 rounded-lg text-xl hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 btn-active-effect">
+                처음으로 돌아가기
+            </button>
+        </div>
+    </div>
+
+    <!-- 연습 실패 시 팝업 모달 -->
+    <div id="practice-fail-modal" class="modal-overlay hidden">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-sm w-full text-center">
+            <h3 class="text-2xl font-bold text-red-600 mb-4">규칙을 다시 확인해 주세요!</h3>
+            <p id="practice-fail-text" class="text-gray-700 mb-6"></p>
+            <button id="practice-fail-confirm-button" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-lg hover:bg-blue-700 btn-active-effect">
+                확인
+            </button>
+        </div>
+    </div>
+
+    <!-- 결과 전송을 위한 Form -->
+    <form id="test-form" method="post" action="{{ url_for('submit') }}" class="hidden">
+        <input type="hidden" name="stroop_test_results" id="stroop_test_results">
+        <input type="hidden" name="next_page" value="finish">
+    </form>
+
+    <script src="{{ url_for('static', filename='js/stroop_test.js') }}"></script>
+</body>
+</html>
