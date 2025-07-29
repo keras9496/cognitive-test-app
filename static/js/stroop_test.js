@@ -125,14 +125,36 @@ document.addEventListener('DOMContentLoaded', () => {
         return newTrials;
     }
 
+    /**
+     * [수정됨] 요청하신 사양에 맞춰 연습 문제를 생성하는 함수
+     * @param {number} round - 현재 라운드 (1: 색상 맞추기, 2: 의미 맞추기)
+     * @returns {Array} - 생성된 연습 문제 배열
+     */
     function generatePracticeTrials(round) {
         const practiceSet = [];
-        const targetCount = 2;
-        for (let i = 0; i < targetCount; i++) { let word, color; if (round === 1) { color = targetColor; word = getRandomElement(COLORS, color); } else { word = targetColor; color = getRandomElement(COLORS, word); } practiceSet.push({ word: word.kor, color: color.code, isTarget: true }); }
-        for (let i = 0; i < PRACTICE_TRIAL_COUNT - targetCount; i++) { let word, color; const nonTarget = getRandomElement(COLORS, targetColor); if (Math.random() > 0.5) { word = getRandomElement(COLORS, nonTarget); color = nonTarget; } else { word = nonTarget; color = nonTarget; } practiceSet.push({ word: word.kor, color: color.code, isTarget: false }); }
-        shuffleArray(practiceSet);
+        
+        if (round === 1) { // 규칙: 글자의 '색상'이 목표와 일치하는가?
+            // 1. 색상 일치 (정답)
+            practiceSet.push({ word: getRandomElement(COLORS, targetColor).kor, color: targetColor.code, isTarget: true });
+            // 2. 의미 일치 (오답)
+            practiceSet.push({ word: targetColor.kor, color: getRandomElement(COLORS, targetColor).code, isTarget: false });
+            // 3. 색상 일치 (정답)
+            practiceSet.push({ word: getRandomElement(COLORS, targetColor).kor, color: targetColor.code, isTarget: true });
+            // 4. 의미 일치 (오답)
+            practiceSet.push({ word: targetColor.kor, color: getRandomElement(COLORS, targetColor).code, isTarget: false });
+        } else { // 규칙: 글자의 '의미'가 목표와 일치하는가?
+            // 1. 색상 일치 (오답)
+            practiceSet.push({ word: getRandomElement(COLORS, targetColor).kor, color: targetColor.code, isTarget: false });
+            // 2. 의미 일치 (정답)
+            practiceSet.push({ word: targetColor.kor, color: getRandomElement(COLORS, targetColor).code, isTarget: true });
+            // 3. 색상 일치 (오답)
+            practiceSet.push({ word: getRandomElement(COLORS, targetColor).kor, color: targetColor.code, isTarget: false });
+            // 4. 의미 일치 (정답)
+            practiceSet.push({ word: targetColor.kor, color: getRandomElement(COLORS, targetColor).code, isTarget: true });
+        }
         return practiceSet;
     }
+
 
     // --- 게임 흐름 제어 ---
     function showPrePracticeScreen(roundNum) {
@@ -148,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startPractice() {
         currentPracticeIndex = 0;
+        // [수정] 새로운 연습 문제 생성 함수 호출
         practiceTrials = generatePracticeTrials(currentRound);
         hideAllScreens();
         practiceScreen.classList.remove('hidden');
@@ -245,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainTrialIndex = 0;
         correctCount = 0;
         reactionTimes = [];
+        // [수정] 연습에서 사용된 targetColor를 그대로 사용하여 본 테스트 문항 생성
         trials = generateTrials(currentRound);
         updateScoreAndTrial();
         instructionArea.innerHTML = preRoundInstructionArea.innerHTML;
