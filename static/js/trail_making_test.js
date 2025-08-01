@@ -5,16 +5,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const userResults = {
         testA_time: 0,
         testA_errors: 0,
+        testA_completed: false, // 완료 여부 추가
         consonant_check_failures: 0,
-        consonant_check_time: 0, // 자음 테스트 소요 시간
+        consonant_check_time: 0,
+        consonant_check_completed: false, // 완료 여부 추가
         testB_time: 0,
         testB_errors: 0,
+        testB_completed: false, // 완료 여부 추가
+        termination_reason: null, // 종료 사유 추가
+        termination_stage: null, // 종료된 단계 추가
     };
 
     const KOREAN_CONSONANTS = ['가', '나', '다', '라', '마', '바', '사', '아', '자', '차', '카', '타', '파', '하'];
     let currentConsonantIndex = 0;
     let consonantCheckStartTime = 0;
-
 
     // --- 화면 전환 함수 ---
     const screens = document.querySelectorAll('#app-container > div');
@@ -28,7 +32,81 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // --- 테스트 로직 클래스 ---
+    // --- 시험 중지 기능 ---
+    function showTerminationDialog(callback) {
+        const dialog = document.createElement('div');
+        dialog.className = 'termination-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="termination-dialog">
+                <h3>시험 중지</h3>
+                <p>정말로 시험을 중지하시겠습니까?</p>
+                <p class="warning">지금까지의 결과가 저장되고 다음 단계로 넘어갑니다.</p>
+                <div class="dialog-buttons">
+                    <button class="btn btn-secondary" id="continue-test">계속하기</button>
+                    <button class="btn btn-danger" id="terminate-test">중지하기</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        document.getElementById('continue-test').addEventListener('click', () => {
+            document.body.removeChild(dialog);
+        });
+        
+        document.getElementById('terminate-test').addEventListener('click', () => {
+            document.body.removeChild(dialog);
+            callback();
+        });
+    }
+
+    function terminateCurrentTest() {
+        userResults.termination_reason = 'user_terminated';
+        userResults.termination_stage = currentStage;
+        
+        // 현재 진행 중인 테스트의 중간 결과 저장
+        if (currentTest) {
+            const currentTime = Date.now();
+            const elapsedTime = currentTest.startTime > 0 ? (currentTime - currentTest.startTime) / 1000 : 0;
+            
+            switch (currentStage) {
+                case 'A_PRACTICE':
+                    // 연습은 결과 저장하지 않고 바로 다음 단계로
+                    runTestAMain();
+                    return;
+                    
+                case 'A_MAIN':
+                    userResults.testA_time = parseFloat(elapsedTime.toFixed(2));
+                    userResults.testA_errors = currentTest.errorCount;
+                    userResults.testA_completed = false;
+                    runConsonantCheck();
+                    return;
+                    
+                case 'B_PRACTICE':
+                    // 연습은 결과 저장하지 않고 바로 다음 단계로
+                    runTestBMain();
+                    return;
+                    
+                case 'B_MAIN':
+                    userResults.testB_time = parseFloat(elapsedTime.toFixed(2));
+                    userResults.testB_errors = currentTest.errorCount;
+                    userResults.testB_completed = false;
+                    submitResults();
+                    return;
+            }
+        }
+        
+        // 자음 체크 중인 경우
+        if (currentStage === 'CONSONANT_CHECK') {
+            const currentTime = Date.now();
+            const elapsedTime = consonantCheckStartTime > 0 ? (currentTime - consonantCheckStartTime) / 1000 : 0;
+            userResults.consonant_check_time = parseFloat(elapsedTime.toFixed(2));
+            userResults.consonant_check_completed = false;
+            runTestBPractice();
+        }
+    }
+
+    // --- 테스트 로직 클래스 (수정) ---
     class TrailMakingTest {
         constructor(containerId, items, onComplete) {
             this.container = document.getElementById(containerId);
@@ -79,7 +157,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 circle.className = 'circle';
                 circle.style.left = `${newPos.x}px`;
                 circle.style.top = `${newPos.y}px`;
-                // [오류 수정] 전체 배열이 아닌, 현재 인덱스의 항목을 할당
                 circle.textContent = this.items[i];
                 circle.dataset.value = this.items[i];
                 this.container.appendChild(circle);
@@ -140,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // --- [수정] 새로운 자음 순서 맞추기 로직 ---
+    // --- 자음 순서 맞추기 로직 (수정) ---
     function setupConsonantCheck() {
         currentConsonantIndex = 0;
         userResults.consonant_check_failures = 0;
@@ -170,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
             targetArea.appendChild(placeholder);
         }
 
-        consonantCheckStartTime = Date.now(); // 시간 측정 시작
+        consonantCheckStartTime = Date.now();
     }
 
     function handleConsonantClick(event) {
@@ -183,17 +260,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const placeholder = targetArea.children[currentConsonantIndex];
             
             placeholder.textContent = clickedConsonant;
-            placeholder.classList.add('correct'); // 정답 시 스타일 추가
+            placeholder.classList.add('correct');
             
-            clickedBox.style.visibility = 'hidden'; // 클릭된 박스는 숨김 처리
-            clickedBox.removeEventListener('click', handleConsonantClick); // 이벤트 리스너 제거
+            clickedBox.style.visibility = 'hidden';
+            clickedBox.removeEventListener('click', handleConsonantClick);
             
             currentConsonantIndex++;
 
-            // 모든 자음을 맞췄을 때
             if (currentConsonantIndex === KOREAN_CONSONANTS.length) {
                 const endTime = Date.now();
                 userResults.consonant_check_time = parseFloat(((endTime - consonantCheckStartTime) / 1000).toFixed(2));
+                userResults.consonant_check_completed = true;
                 document.getElementById('start-test-b-practice-button').disabled = false;
             }
         } else {
@@ -207,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // --- 단계별 진행 함수 ---
+    // --- 단계별 진행 함수 (수정) ---
     function runTestAPractice() {
         currentStage = 'A_PRACTICE';
         showScreen('test-a-practice-screen');
@@ -225,6 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentTest = new TrailMakingTest('test-a-main-area', items, (duration, errors) => {
             userResults.testA_time = parseFloat(duration.toFixed(2));
             userResults.testA_errors = errors;
+            userResults.testA_completed = true;
             runConsonantCheck();
         });
     }
@@ -254,7 +332,6 @@ document.addEventListener('DOMContentLoaded', function() {
         currentStage = 'B_MAIN';
         showScreen('test-b-main-screen');
         const items = [];
-        // [오류 수정] 1-가 ... 12-자, 13 순서로 25개 항목 생성
         for (let i = 0; i < 14; i++) {
             items.push(i + 1);
             items.push(KOREAN_CONSONANTS[i]);
@@ -263,6 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentTest = new TrailMakingTest('test-b-main-area', items, (duration, errors) => {
             userResults.testB_time = parseFloat(duration.toFixed(2));
             userResults.testB_errors = errors;
+            userResults.testB_completed = true;
             submitResults();
         });
     }
@@ -291,12 +369,25 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('결과 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
         }
     }
+
+    // --- 시험중지 버튼 이벤트 리스너 추가 ---
+    function addTerminationButton() {
+        const terminationButtons = document.querySelectorAll('.terminate-btn');
+        terminationButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                showTerminationDialog(terminateCurrentTest);
+            });
+        });
+    }
     
-    // --- 이벤트 리스너 ---
+    // --- 기존 이벤트 리스너 ---
     document.getElementById('start-button').addEventListener('click', runTestAPractice);
     document.getElementById('start-test-a-button').addEventListener('click', runTestAMain);
     document.getElementById('start-test-b-practice-button').addEventListener('click', runTestBPractice);
     document.getElementById('start-test-b-button').addEventListener('click', runTestBMain);
+
+    // --- 시험중지 버튼 이벤트 리스너 등록 ---
+    addTerminationButton();
 
     // --- 앱 초기화 ---
     showScreen('welcome-screen');

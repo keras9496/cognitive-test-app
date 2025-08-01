@@ -91,6 +91,7 @@
             cursor: pointer;
             transition: all 0.2s;
             border: none;
+            margin: 0 8px;
         }
         .btn-primary {
             background-color: #3b82f6;
@@ -106,6 +107,13 @@
          .btn-secondary:hover {
             background-color: #15803d;
         }
+        .btn-danger {
+            background-color: #dc2626;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #b91c1c;
+        }
         .consonant-box, .consonant-placeholder {
             width: 60px;
             height: 60px;
@@ -114,7 +122,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 2.25rem; /* 기존보다 1.5배 크게 */
+            font-size: 2.25rem;
             font-weight: 700;
             user-select: none;
             transition: all 0.2s ease-in-out;
@@ -132,14 +140,69 @@
             background-color: #f1f5f9;
         }
         .consonant-placeholder.correct {
-            background-color: #dbeafe; /* 파란색 계열 */
+            background-color: #dbeafe;
             color: #1e40af;
             border-color: #93c5fd;
         }
         .consonant-box.error {
             animation: shake 0.5s;
-            border-color: #ef4444; /* 붉은색 */
+            border-color: #ef4444;
             background-color: #fee2e2;
+        }
+        
+        /* 시험중지 다이얼로그 스타일 */
+        .termination-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .termination-dialog {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .termination-dialog h3 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #dc2626;
+        }
+        
+        .termination-dialog p {
+            margin-bottom: 1rem;
+            color: #374151;
+        }
+        
+        .termination-dialog .warning {
+            font-size: 0.9rem;
+            color: #f59e0b;
+            font-weight: 500;
+        }
+        
+        .dialog-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .terminate-control {
+            position: absolute;
+            top: 20px;
+            right: 20px;
         }
     </style>
 </head>
@@ -155,6 +218,9 @@
 
         <!-- 2. Test A Practice -->
         <div id="test-a-practice-screen" class="hidden text-center space-y-4">
+            <div class="terminate-control">
+                <button class="btn btn-danger terminate-btn">시험중지</button>
+            </div>
             <h2 class="text-2xl font-bold">A형 검사 (연습)</h2>
             <p>숫자 1부터 8까지, 순서대로 모든 원을 이어서 선택해 주세요.</p>
             <div id="test-a-practice-area" class="test-area">
@@ -165,6 +231,9 @@
         
         <!-- 3. Test A Main -->
         <div id="test-a-main-screen" class="hidden text-center space-y-4">
+            <div class="terminate-control">
+                <button class="btn btn-danger terminate-btn">시험중지</button>
+            </div>
             <h2 class="text-2xl font-bold">A형 검사 (본 검사)</h2>
             <p>숫자 1부터 25까지, 순서대로 모든 원을 이어서 선택해 주세요.</p>
             <div id="test-a-main-area" class="test-area">
@@ -174,20 +243,27 @@
 
         <!-- 4. Consonant Check -->
         <div id="consonant-check-screen" class="hidden text-center space-y-4">
+            <div class="terminate-control">
+                <button class="btn btn-danger terminate-btn">시험중지</button>
+            </div>
             <h2 class="text-2xl font-bold">중간 과제: 자음 순서 배열하기</h2>
             <p>아래 자음들을 순서에 맞게 (가, 나, 다...) 클릭하여 위 칸을 채워주세요.</p>
             
             <div id="consonant-target-area" class="flex flex-wrap justify-center items-center gap-2 p-4 bg-slate-100 rounded-lg min-h-[140px]">
-                </div>
+            </div>
 
             <div id="consonant-source-area" class="flex flex-wrap justify-center items-center gap-4 p-4 mt-4">
-                </div>
+            </div>
 
             <p class="text-sm text-red-600 font-semibold">틀린 횟수: <span id="consonant-failures">0</span></p>
             <button id="start-test-b-practice-button" class="btn btn-primary mt-4">B형 연습 시작</button>
         </div>
+        
         <!-- 5. Test B Practice -->
         <div id="test-b-practice-screen" class="hidden text-center space-y-4">
+            <div class="terminate-control">
+                <button class="btn btn-danger terminate-btn">시험중지</button>
+            </div>
             <h2 class="text-2xl font-bold">B형 검사 (연습)</h2>
             <p>숫자와 글자를 번갈아 가며 순서대로 선택하세요. (예: 1 → 가 → 2 → 나 ...)</p>
             <div id="test-b-practice-area" class="test-area">
@@ -198,6 +274,9 @@
 
         <!-- 6. Test B Main -->
         <div id="test-b-main-screen" class="hidden text-center space-y-4">
+            <div class="terminate-control">
+                <button class="btn btn-danger terminate-btn">시험중지</button>
+            </div>
             <h2 class="text-2xl font-bold">B형 검사 (본 검사)</h2>
             <p>숫자와 글자를 번갈아 가며 순서대로 선택하세요. (예: 1 → 가 → 2 → 나 ...)</p>
             <div id="test-b-main-area" class="test-area">
