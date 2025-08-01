@@ -167,7 +167,9 @@ def intermission():
     level = session.get('current_level', 0)
     problem = create_sequence_problem(level)
     session['current_problem'] = problem
-    return render_template('intermission.html', flash_count=problem['flash_count'])
+    return render_template('intermission.html', 
+                         flash_count=problem['flash_count'],
+                         current_level=level)
 
 @app.route('/problem')
 def problem():

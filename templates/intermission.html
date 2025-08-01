@@ -38,79 +38,80 @@
             const audioStatus = document.getElementById('audio-status');
             const startButton = document.getElementById('start-problem-btn');
             
-            let isAudioPlaying = false;
-            let audioLoaded = false;
-            
-            // 현재 레벨과 플래시 카운트에 따라 음성 파일 결정
             const flashCount = {{ flash_count }};
-            let audioFile = '';
+            const currentLevel = {{ current_level if current_level is defined else 'null' }};
             
-            if (flashCount === 2) {
-                // 연습 문제 (레벨 0)
-                audioFile = '{{ url_for("static", filename="audio/sequence_intro.mp3") }}';
-            } else {
-                // 본 테스트 레벨들
-                audioFile = `{{ url_for("static", filename="audio/sequence_level") }}${flashCount - 1}.mp3`;
-            }
+            // 첫 번째 연습 문제(레벨 0, flashCount 2)에서만 음성 재생
+            const shouldPlayAudio = (currentLevel === 0 && flashCount === 2);
             
-            // 음성 파일 설정
-            audio.src = audioFile;
-            
-            // 음성 로드 완료 시
-            audio.addEventListener('loadeddata', function() {
-                audioLoaded = true;
-                audioStatus.textContent = '확인 버튼을 누르면 음성 안내가 시작됩니다.';
-            });
-            
-            // 음성 재생 시작 시
-            audio.addEventListener('play', function() {
-                isAudioPlaying = true;
-                audioStatus.textContent = '음성 안내 재생 중...';
-                startButton.textContent = '재생 중...';
-                startButton.disabled = true;
-                startButton.style.backgroundColor = '#6c757d'; // 회색으로 변경
-            });
-            
-            // 음성 재생 완료 시
-            audio.addEventListener('ended', function() {
-                isAudioPlaying = false;
-                audioStatus.textContent = '음성 안내가 완료되었습니다. 자동으로 시작합니다...';
+            if (shouldPlayAudio) {
+                // 음성 재생이 필요한 경우
+                let isAudioPlaying = false;
+                let audioLoaded = false;
                 
-                // 1초 후 자동으로 다음 페이지로 이동
-                setTimeout(function() {
-                    window.location.href = '/problem';
-                }, 1000);
-            });
-            
-            // 음성 로드 에러 시
-            audio.addEventListener('error', function() {
-                console.log('음성 파일을 로드할 수 없습니다.');
-                audioStatus.textContent = '음성 파일을 찾을 수 없습니다. 확인 버튼을 누르면 바로 시작합니다.';
-                audioLoaded = false;
-            });
-            
-            // 확인 버튼 클릭 시
-            startButton.addEventListener('click', function() {
-                if (isAudioPlaying) {
-                    // 음성이 재생 중이면 아무것도 하지 않음
-                    return;
-                }
+                // 음성 파일 설정
+                const audioFile = '{{ url_for("static", filename="audio/sequence_intro.mp3") }}';
+                audio.src = audioFile;
                 
-                if (audioLoaded && audio.paused) {
-                    // 음성 파일이 있고 재생되지 않은 상태면 재생
-                    audio.play().catch(function(error) {
-                        console.log('음성 재생 실패:', error);
-                        // 음성 재생 실패 시 바로 다음 페이지로 이동
+                // 음성 로드 완료 시
+                audio.addEventListener('loadeddata', function() {
+                    audioLoaded = true;
+                    audioStatus.textContent = '확인 버튼을 누르면 음성 안내가 시작됩니다.';
+                });
+                
+                // 음성 재생 시작 시
+                audio.addEventListener('play', function() {
+                    isAudioPlaying = true;
+                    audioStatus.textContent = '음성 안내 재생 중...';
+                    startButton.textContent = '재생 중...';
+                    startButton.disabled = true;
+                    startButton.style.backgroundColor = '#6c757d';
+                });
+                
+                // 음성 재생 완료 시
+                audio.addEventListener('ended', function() {
+                    isAudioPlaying = false;
+                    audioStatus.textContent = '음성 안내가 완료되었습니다. 자동으로 시작합니다...';
+                    
+                    setTimeout(function() {
                         window.location.href = '/problem';
-                    });
-                } else {
-                    // 음성 파일이 없거나 이미 재생된 경우 바로 다음 페이지로 이동
+                    }, 1000);
+                });
+                
+                // 음성 로드 에러 시
+                audio.addEventListener('error', function() {
+                    console.log('음성 파일을 로드할 수 없습니다.');
+                    audioStatus.textContent = '음성 파일을 찾을 수 없습니다. 확인 버튼을 누르면 바로 시작합니다.';
+                    audioLoaded = false;
+                });
+                
+                // 확인 버튼 클릭 시 (음성 재생 모드)
+                startButton.addEventListener('click', function() {
+                    if (isAudioPlaying) {
+                        return;
+                    }
+                    
+                    if (audioLoaded && audio.paused) {
+                        audio.play().catch(function(error) {
+                            console.log('음성 재생 실패:', error);
+                            window.location.href = '/problem';
+                        });
+                    } else {
+                        window.location.href = '/problem';
+                    }
+                });
+                
+                audio.volume = 0.8;
+                
+            } else {
+                // 음성 재생이 필요없는 경우 (두 번째부터)
+                audioStatus.textContent = '준비가 되면 확인 버튼을 눌러주세요.';
+                
+                // 확인 버튼 클릭 시 (일반 모드)
+                startButton.addEventListener('click', function() {
                     window.location.href = '/problem';
-                }
-            });
-            
-            // 음성 볼륨 조절 (필요시)
-            audio.volume = 0.8;
+                });
+            }
         });
     </script>
 </body>
