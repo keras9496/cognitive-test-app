@@ -204,6 +204,26 @@
             justify-content: flex-end;
             margin-bottom: 1rem;
         }
+        
+        .test-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .test-header h2 {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0;
+        }
+        
+        .test-header .terminate-control {
+            margin-left: auto;
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -218,7 +238,7 @@
 
         <!-- 2. Test A Practice -->
         <div id="test-a-practice-screen" class="hidden text-center space-y-4">
-            <div class="flex justify-between items-center mb-4">
+            <div class="test-header">
                 <h2 class="text-2xl font-bold">A형 검사 (연습)</h2>
                 <div class="terminate-control">
                     <button class="btn btn-danger terminate-btn">시험중지</button>
@@ -233,7 +253,7 @@
         
         <!-- 3. Test A Main -->
         <div id="test-a-main-screen" class="hidden text-center space-y-4">
-            <div class="flex justify-between items-center mb-4">
+            <div class="test-header">
                 <h2 class="text-2xl font-bold">A형 검사 (본 검사)</h2>
                 <div class="terminate-control">
                     <button class="btn btn-danger terminate-btn">시험중지</button>
@@ -247,7 +267,7 @@
 
         <!-- 4. Consonant Check -->
         <div id="consonant-check-screen" class="hidden text-center space-y-4">
-            <div class="flex justify-between items-center mb-4">
+            <div class="test-header">
                 <h2 class="text-2xl font-bold">중간 과제: 자음 순서 배열하기</h2>
                 <div class="terminate-control">
                     <button class="btn btn-danger terminate-btn">시험중지</button>
@@ -267,7 +287,7 @@
         
         <!-- 5. Test B Practice -->
         <div id="test-b-practice-screen" class="hidden text-center space-y-4">
-            <div class="flex justify-between items-center mb-4">
+            <div class="test-header">
                 <h2 class="text-2xl font-bold">B형 검사 (연습)</h2>
                 <div class="terminate-control">
                     <button class="btn btn-danger terminate-btn">시험중지</button>
@@ -282,7 +302,7 @@
 
         <!-- 6. Test B Main -->
         <div id="test-b-main-screen" class="hidden text-center space-y-4">
-            <div class="flex justify-between items-center mb-4">
+            <div class="test-header">
                 <h2 class="text-2xl font-bold">B형 검사 (본 검사)</h2>
                 <div class="terminate-control">
                     <button class="btn btn-danger terminate-btn">시험중지</button>
