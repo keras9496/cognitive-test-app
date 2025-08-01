@@ -12,18 +12,105 @@
             다음 문제 안내
         </h2>
         <p style="font-size: 1.2em; line-height: 1.6; margin-bottom: 30px;">
-            이번에는 <strong style="color: #007bff; font-size: 1.3em;">{{ flash_count }}</strong>개의 박스가 깜빡입니다.<br>
+            이번에는 <strong style="color: #007bff; font-size: 1.3em;">{{ flash_count }}</strong>개의 박스가 깝빡입니다.<br>
             준비가 되면 아래 버튼을 눌러주세요.
         </p>
+        
+        <!-- 음성 재생 영역 추가 -->
+        <div id="audio-section" style="margin-bottom: 20px;">
+            <audio id="instruction-audio" preload="auto">
+                <source src="" type="audio/mpeg">
+                브라우저가 오디오를 지원하지 않습니다.
+            </audio>
+            <div id="audio-status" style="color: #666; font-size: 0.9em; margin-bottom: 10px;">
+                음성 안내가 준비되었습니다.
+            </div>
+        </div>
+        
         <button id="start-problem-btn" class="start-btn" style="max-width: 200px;">
             확인
         </button>
     </div>
 
     <script>
-        document.getElementById('start-problem-btn').addEventListener('click', () => {
-            // 'problem' 엔드포인트로 이동하여 실제 문제를 표시
-            window.location.href = '/problem';
+        document.addEventListener('DOMContentLoaded', function() {
+            const audio = document.getElementById('instruction-audio');
+            const audioStatus = document.getElementById('audio-status');
+            const startButton = document.getElementById('start-problem-btn');
+            
+            let isAudioPlaying = false;
+            let audioLoaded = false;
+            
+            // 현재 레벨과 플래시 카운트에 따라 음성 파일 결정
+            const flashCount = {{ flash_count }};
+            let audioFile = '';
+            
+            if (flashCount === 2) {
+                // 연습 문제 (레벨 0)
+                audioFile = '{{ url_for("static", filename="audio/sequence_intro.mp3") }}';
+            } else {
+                // 본 테스트 레벨들
+                audioFile = `{{ url_for("static", filename="audio/sequence_level") }}${flashCount - 1}.mp3`;
+            }
+            
+            // 음성 파일 설정
+            audio.src = audioFile;
+            
+            // 음성 로드 완료 시
+            audio.addEventListener('loadeddata', function() {
+                audioLoaded = true;
+                audioStatus.textContent = '확인 버튼을 누르면 음성 안내가 시작됩니다.';
+            });
+            
+            // 음성 재생 시작 시
+            audio.addEventListener('play', function() {
+                isAudioPlaying = true;
+                audioStatus.textContent = '음성 안내 재생 중...';
+                startButton.textContent = '재생 중...';
+                startButton.disabled = true;
+                startButton.style.backgroundColor = '#6c757d'; // 회색으로 변경
+            });
+            
+            // 음성 재생 완료 시
+            audio.addEventListener('ended', function() {
+                isAudioPlaying = false;
+                audioStatus.textContent = '음성 안내가 완료되었습니다. 자동으로 시작합니다...';
+                
+                // 1초 후 자동으로 다음 페이지로 이동
+                setTimeout(function() {
+                    window.location.href = '/problem';
+                }, 1000);
+            });
+            
+            // 음성 로드 에러 시
+            audio.addEventListener('error', function() {
+                console.log('음성 파일을 로드할 수 없습니다.');
+                audioStatus.textContent = '음성 파일을 찾을 수 없습니다. 확인 버튼을 누르면 바로 시작합니다.';
+                audioLoaded = false;
+            });
+            
+            // 확인 버튼 클릭 시
+            startButton.addEventListener('click', function() {
+                if (isAudioPlaying) {
+                    // 음성이 재생 중이면 아무것도 하지 않음
+                    return;
+                }
+                
+                if (audioLoaded && audio.paused) {
+                    // 음성 파일이 있고 재생되지 않은 상태면 재생
+                    audio.play().catch(function(error) {
+                        console.log('음성 재생 실패:', error);
+                        // 음성 재생 실패 시 바로 다음 페이지로 이동
+                        window.location.href = '/problem';
+                    });
+                } else {
+                    // 음성 파일이 없거나 이미 재생된 경우 바로 다음 페이지로 이동
+                    window.location.href = '/problem';
+                }
+            });
+            
+            // 음성 볼륨 조절 (필요시)
+            audio.volume = 0.8;
         });
     </script>
 </body>
