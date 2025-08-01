@@ -6,12 +6,21 @@ document.addEventListener('DOMContentLoaded', function() {
         testA_time: 0,
         testA_errors: 0,
         testA_completed: false, // 완료 여부 추가
+        testA_terminated: false, // A형 본검사에서 중지 여부
+        testA_practice_terminated: false, // A형 연습에서 중지 여부
+        testA_practice_time: 0, // A형 연습 소요시간
+        testA_practice_errors: 0, // A형 연습 오류수
         consonant_check_failures: 0,
         consonant_check_time: 0,
         consonant_check_completed: false, // 완료 여부 추가
+        consonant_check_terminated: false, // 자음체크에서 중지 여부
         testB_time: 0,
         testB_errors: 0,
         testB_completed: false, // 완료 여부 추가
+        testB_terminated: false, // B형 본검사에서 중지 여부
+        testB_practice_terminated: false, // B형 연습에서 중지 여부
+        testB_practice_time: 0, // B형 연습 소요시간
+        testB_practice_errors: 0, // B형 연습 오류수
         termination_reason: null, // 종료 사유 추가
         termination_stage: null, // 종료된 단계 추가
     };
@@ -71,11 +80,15 @@ document.addEventListener('DOMContentLoaded', function() {
             
             switch (currentStage) {
                 case 'A_PRACTICE':
-                    // 연습은 결과 저장하지 않고 바로 다음 단계로
+                    // 연습도 기록을 남김
+                    userResults.testA_practice_terminated = true;
+                    userResults.testA_practice_time = parseFloat(elapsedTime.toFixed(2));
+                    userResults.testA_practice_errors = currentTest.errorCount;
                     runTestAMain();
                     return;
                     
                 case 'A_MAIN':
+                    userResults.testA_terminated = true;
                     userResults.testA_time = parseFloat(elapsedTime.toFixed(2));
                     userResults.testA_errors = currentTest.errorCount;
                     userResults.testA_completed = false;
@@ -83,11 +96,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                     
                 case 'B_PRACTICE':
-                    // 연습은 결과 저장하지 않고 바로 다음 단계로
+                    // 연습도 기록을 남김
+                    userResults.testB_practice_terminated = true;
+                    userResults.testB_practice_time = parseFloat(elapsedTime.toFixed(2));
+                    userResults.testB_practice_errors = currentTest.errorCount;
                     runTestBMain();
                     return;
                     
                 case 'B_MAIN':
+                    userResults.testB_terminated = true;
                     userResults.testB_time = parseFloat(elapsedTime.toFixed(2));
                     userResults.testB_errors = currentTest.errorCount;
                     userResults.testB_completed = false;
@@ -100,6 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentStage === 'CONSONANT_CHECK') {
             const currentTime = Date.now();
             const elapsedTime = consonantCheckStartTime > 0 ? (currentTime - consonantCheckStartTime) / 1000 : 0;
+            userResults.consonant_check_terminated = true;
             userResults.consonant_check_time = parseFloat(elapsedTime.toFixed(2));
             userResults.consonant_check_completed = false;
             runTestBPractice();

@@ -200,9 +200,9 @@
         }
         
         .terminate-control {
-            position: absolute;
-            top: 20px;
-            right: 20px;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -218,10 +218,12 @@
 
         <!-- 2. Test A Practice -->
         <div id="test-a-practice-screen" class="hidden text-center space-y-4">
-            <div class="terminate-control">
-                <button class="btn btn-danger terminate-btn">시험중지</button>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">A형 검사 (연습)</h2>
+                <div class="terminate-control">
+                    <button class="btn btn-danger terminate-btn">시험중지</button>
+                </div>
             </div>
-            <h2 class="text-2xl font-bold">A형 검사 (연습)</h2>
             <p>숫자 1부터 8까지, 순서대로 모든 원을 이어서 선택해 주세요.</p>
             <div id="test-a-practice-area" class="test-area">
                 <svg class="line-svg"></svg>
@@ -231,10 +233,12 @@
         
         <!-- 3. Test A Main -->
         <div id="test-a-main-screen" class="hidden text-center space-y-4">
-            <div class="terminate-control">
-                <button class="btn btn-danger terminate-btn">시험중지</button>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">A형 검사 (본 검사)</h2>
+                <div class="terminate-control">
+                    <button class="btn btn-danger terminate-btn">시험중지</button>
+                </div>
             </div>
-            <h2 class="text-2xl font-bold">A형 검사 (본 검사)</h2>
             <p>숫자 1부터 25까지, 순서대로 모든 원을 이어서 선택해 주세요.</p>
             <div id="test-a-main-area" class="test-area">
                 <svg class="line-svg"></svg>
@@ -243,10 +247,12 @@
 
         <!-- 4. Consonant Check -->
         <div id="consonant-check-screen" class="hidden text-center space-y-4">
-            <div class="terminate-control">
-                <button class="btn btn-danger terminate-btn">시험중지</button>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">중간 과제: 자음 순서 배열하기</h2>
+                <div class="terminate-control">
+                    <button class="btn btn-danger terminate-btn">시험중지</button>
+                </div>
             </div>
-            <h2 class="text-2xl font-bold">중간 과제: 자음 순서 배열하기</h2>
             <p>아래 자음들을 순서에 맞게 (가, 나, 다...) 클릭하여 위 칸을 채워주세요.</p>
             
             <div id="consonant-target-area" class="flex flex-wrap justify-center items-center gap-2 p-4 bg-slate-100 rounded-lg min-h-[140px]">
@@ -261,10 +267,12 @@
         
         <!-- 5. Test B Practice -->
         <div id="test-b-practice-screen" class="hidden text-center space-y-4">
-            <div class="terminate-control">
-                <button class="btn btn-danger terminate-btn">시험중지</button>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">B형 검사 (연습)</h2>
+                <div class="terminate-control">
+                    <button class="btn btn-danger terminate-btn">시험중지</button>
+                </div>
             </div>
-            <h2 class="text-2xl font-bold">B형 검사 (연습)</h2>
             <p>숫자와 글자를 번갈아 가며 순서대로 선택하세요. (예: 1 → 가 → 2 → 나 ...)</p>
             <div id="test-b-practice-area" class="test-area">
                 <svg class="line-svg"></svg>
@@ -274,10 +282,12 @@
 
         <!-- 6. Test B Main -->
         <div id="test-b-main-screen" class="hidden text-center space-y-4">
-            <div class="terminate-control">
-                <button class="btn btn-danger terminate-btn">시험중지</button>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">B형 검사 (본 검사)</h2>
+                <div class="terminate-control">
+                    <button class="btn btn-danger terminate-btn">시험중지</button>
+                </div>
             </div>
-            <h2 class="text-2xl font-bold">B형 검사 (본 검사)</h2>
             <p>숫자와 글자를 번갈아 가며 순서대로 선택하세요. (예: 1 → 가 → 2 → 나 ...)</p>
             <div id="test-b-main-area" class="test-area">
                 <svg class="line-svg"></svg>
